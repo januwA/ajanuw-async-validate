@@ -7,8 +7,12 @@ export interface AsyncValidateOption {
 export interface AsyncValidateHandle {
     (input: any, data: ValidateData): string | undefined | Promise<string | undefined>;
 }
+export interface ValidateError {
+    name: string;
+    message: string;
+}
 export interface ValidateErrorHandle {
-    (errorMessage: string): void;
+    (errorMessage: ValidateError): void;
 }
 export declare class AsyncValidate {
     readonly options: AsyncValidateOption;

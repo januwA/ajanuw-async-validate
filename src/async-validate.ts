@@ -22,11 +22,23 @@ export interface AsyncValidateHandle {
     | Promise<string | undefined>;
 }
 
+export interface ValidateError {
+  /**
+   * 验证失败的字段key
+   */
+  name: string;
+
+  /**
+   * 验证失败返回的错误消息
+   */
+  message: string;
+}
+
 /**
  * 处理error message的函数
  */
 export interface ValidateErrorHandle {
-  (errorMessage: string): void;
+  (errorMessage: ValidateError): void;
 }
 
 export class AsyncValidate {
@@ -62,10 +74,14 @@ export class AsyncValidate {
       for (const validate of this.options[key]) {
         const errorMessage = await validate(value, data);
         if (errorMessage) {
+          const err: ValidateError = {
+            name: key,
+            message: errorMessage,
+          };
           // 验证失败
-          if (this.validateErrorHandle) this.validateErrorHandle(errorMessage);
+          if (this.validateErrorHandle) this.validateErrorHandle(err);
           else if (AsyncValidate.validateErrorHandle)
-            AsyncValidate.validateErrorHandle(errorMessage);
+            AsyncValidate.validateErrorHandle(err);
           result = false;
           break;
         }

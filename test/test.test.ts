@@ -34,8 +34,9 @@ describe("main", () => {
           },
         ],
       },
-      function (msg) {
-        expect(msg).toBe("两次密码填写不一样");
+      function ({ name, message }) {
+        expect(name).toBe("pwd2");
+        expect(message).toBe("两次密码填写不一样");
       }
     );
 

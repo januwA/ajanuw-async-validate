@@ -43,8 +43,8 @@ const av = new AsyncValidate(
       },
     ],
   },
-  function (msg) {
-    // dialog(msg)
+  function ({name, message}) {
+    // dialog(message)
   }
 );
 
