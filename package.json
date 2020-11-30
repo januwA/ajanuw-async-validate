@@ -1,6 +1,6 @@
 {
   "name": "ajanuw-async-validate",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "一个简单的异步表单验证器",
   "private": false,
   "main": "./dist/ajanuw-async-validate.js",

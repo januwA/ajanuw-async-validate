@@ -16,27 +16,41 @@ describe("main", () => {
 
     const av = new AsyncValidate(
       {
-        name: [
-          AsyncValidate.required("名称必填"),
-          AsyncValidate.minLength(6, "姓名最少需要6个字符"),
-          async function (input) {
-            if (!(await checkName(input as string))) return "检测名称失败";
+        name: {
+          required: "名称必填",
+          validators: [
+            AsyncValidate.minLength(6, "姓名最少需要6个字符"),
+            async function (input) {
+              if (!(await checkName(input as string)))
+                return { checkName: "检测名称失败" };
+            },
+          ],
+          // fail(er) {
+          // console.log(er.errors);
+          // },
+        },
+        pwd: {
+          required: "密码必填",
+          minLength: [8, "密码最少需要8个字符"],
+        },
+        pwd2: {
+          required: "填写确认密码",
+          validators: function (input, data) {
+            if (input !== data.pwd) return { checkPwd: "两次密码填写不一样" };
           },
-        ],
-        pwd: [
-          AsyncValidate.required("密码必填"),
-          AsyncValidate.minLength(8, "密码最少需要8个字符"),
-        ],
-        pwd2: [
-          AsyncValidate.required("填写确认密码"),
-          function (input, data) {
-            if (input !== data.pwd) return "两次密码填写不一样";
-          },
-        ],
+        },
       },
-      function ({ name, message }) {
-        expect(name).toBe("pwd2");
-        expect(message).toBe("两次密码填写不一样");
+      {
+        checkAll: true,
+        fail: function (erFields) {
+          expect("name" in erFields).toBe(true);
+          expect(erFields.name.errors.minLength).toBe("姓名最少需要6个字符");
+          expect(erFields.name.errors.checkName).toBeTruthy();
+
+          expect("pwd2" in erFields).toBe(true);
+          expect(erFields.pwd2.errors.required).toBeTruthy();
+          expect(erFields.pwd2.errors.checkPwd).toBeTruthy();
+        },
       }
     );
 
@@ -50,16 +64,16 @@ describe("main", () => {
 
     expect(
       await av.validate({
-        name: "ajanuw",
+        name: "aja",
         pwd: "12345678",
-        pwd2: "12345677",
+        pwd2: "",
       })
     ).toBe(false);
   });
 
   it("test max", async () => {
     const av = new AsyncValidate({
-      value: [AsyncValidate.max(10, "不能超过10")],
+      value: AsyncValidate.max(10, "不能超过10"),
     });
     expect(
       await av.validate({
@@ -76,7 +90,9 @@ describe("main", () => {
 
   it("test min", async () => {
     const av = new AsyncValidate({
-      value: [AsyncValidate.min(10, "不能小于10")],
+      value: {
+        min: [10, "不能小于10"],
+      },
     });
     expect(
       await av.validate({
@@ -89,5 +105,283 @@ describe("main", () => {
         value: 11,
       })
     ).toBe(true);
+  });
+
+  it("test hex", async () => {
+    const av = new AsyncValidate({
+      a: AsyncValidate.hex("value is not a hex"),
+      b: AsyncValidate.hex("value is not a hex"),
+      c: AsyncValidate.hex("value is not a hex"),
+      d: AsyncValidate.hex("value is not a hex"),
+      e: AsyncValidate.hex("value is not a hex"),
+    });
+    expect(
+      await av.validate({
+        a: "0x0A",
+        b: "0Ah",
+        c: "0A",
+        d: "0X0A",
+        e: "0AH",
+      })
+    ).toBe(true);
+  });
+
+  it("test number", async () => {
+    const av = new AsyncValidate({
+      a: AsyncValidate.number("value is not a number"),
+    });
+    expect(
+      await av.validate({
+        a: 10,
+      })
+    ).toBe(true);
+    expect(
+      await av.validate({
+        a: 1 / 0,
+      })
+    ).toBe(false);
+
+    expect(
+      await av.validate({
+        a: 0 / 0,
+      })
+    ).toBe(false);
+  });
+
+  it("test int", async () => {
+    const av = new AsyncValidate({
+      a: AsyncValidate.int("value is not a int"),
+    });
+    expect(
+      await av.validate({
+        a: 10,
+      })
+    ).toBe(true);
+    expect(
+      await av.validate({
+        a: 1 / 0,
+      })
+    ).toBe(false);
+
+    expect(
+      await av.validate({
+        a: 0 / 0,
+      })
+    ).toBe(false);
+
+    expect(
+      await av.validate({
+        a: 1.2,
+      })
+    ).toBe(false);
+  });
+
+  it("test float", async () => {
+    const av = new AsyncValidate({
+      a: AsyncValidate.float("value is not a float"),
+    });
+    expect(
+      await av.validate({
+        a: 10,
+      })
+    ).toBe(false);
+
+    expect(
+      await av.validate({
+        a: 1 / 0,
+      })
+    ).toBe(false);
+
+    expect(
+      await av.validate({
+        a: 0 / 0,
+      })
+    ).toBe(false);
+
+    expect(
+      await av.validate({
+        a: 1.2,
+      })
+    ).toBe(true);
+  });
+
+  it("test array", async () => {
+    const av = new AsyncValidate({
+      a: AsyncValidate.array("value is not a array"),
+    });
+    expect(
+      await av.validate({
+        a: [],
+      })
+    ).toBe(true);
+
+    expect(
+      await av.validate({
+        a: 1,
+      })
+    ).toBe(false);
+  });
+
+  it("test object", async () => {
+    const av = new AsyncValidate({
+      a: AsyncValidate.object("value is not a object"),
+    });
+    expect(
+      await av.validate({
+        a: {},
+      })
+    ).toBe(true);
+
+    expect(
+      await av.validate({
+        a: [],
+      })
+    ).toBe(false);
+
+    const av2 = new AsyncValidate(
+      {
+        address: {
+          object: "address error.",
+          validators: new AsyncValidate(
+            {
+              street: {
+                required: "require street.",
+              },
+              zip: {
+                required: "require street.",
+              },
+            },
+            { checkAll: true }
+          ),
+        },
+      },
+      {
+        fail: function (erFields) {
+          expect(erFields.street).toBeTruthy();
+          expect(erFields.street.errors.required).toBeTruthy();
+
+          expect(erFields.zip).toBeTruthy();
+          expect(erFields.zip.errors.required).toBeTruthy();
+        },
+      }
+    );
+    expect(
+      await av2.validate({
+        address: {
+          street: "",
+          zip: "",
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("test json", async () => {
+    const av = new AsyncValidate({
+      a: { json: "value is not a json" },
+    });
+    expect(
+      await av.validate({
+        a: "{}",
+      })
+    ).toBe(true);
+
+    expect(
+      await av.validate({
+        a: "[]",
+      })
+    ).toBe(true);
+
+    expect(
+      await av.validate({
+        a: "['a']",
+      })
+    ).toBe(false);
+  });
+
+  it("test bool", async () => {
+    const av = new AsyncValidate({
+      a: { bool: "value is not a bool" },
+      b: AsyncValidate.bool("value is not a bool"),
+    });
+    expect(
+      await av.validate({
+        a: true,
+        b: false,
+      })
+    ).toBe(true);
+
+    expect(
+      await av.validate({
+        a: 1,
+        b: "",
+      })
+    ).toBe(false);
+  });
+
+  it("test regexp", async () => {
+    const av = new AsyncValidate({
+      a: { regexp: "value is not a regexp" },
+      b: AsyncValidate.regexp("value is not a regexp"),
+    });
+    expect(
+      await av.validate({
+        a: /a/,
+        b: new RegExp(""),
+      })
+    ).toBe(true);
+
+    expect(
+      await av.validate({
+        a: 1,
+        b: "",
+      })
+    ).toBe(false);
+  });
+
+  it("test fail", async () => {
+    const av = new AsyncValidate({
+      value: {
+        hex: "value is not a hex",
+        minLength: [12, "error."],
+        fail(er) {
+          expect(er.errors.hex).toBeTruthy();
+          expect(er.errors.minLength).toBeTruthy();
+        },
+      },
+      name: {
+        required: "name is required",
+        fail(er) {
+          console.log(er);
+        },
+      },
+    });
+    expect(
+      await av.validate({
+        value: "0xhello",
+        name: "ajanuw",
+      })
+    ).toBe(false);
+  });
+});
+
+describe("mixin", () => {
+  beforeAll(() => {
+    AsyncValidate.mixin({
+      enum(c: any[], msg: string) {
+        return (input) => {
+          if (!c.includes(input)) return { enum: msg };
+        };
+      },
+    });
+  });
+
+  it("test mixin", async () => {
+    const av = new AsyncValidate({
+      value: {
+        enum: [["a", "b", "c"], "error."],
+      },
+    });
+    expect(await av.validate({ value: "a" })).toBe(true);
+    expect(await av.validate({ value: "d" })).toBe(false);
   });
 });
