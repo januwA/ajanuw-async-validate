@@ -33,7 +33,8 @@ const av = new AsyncValidate(
         },
       ],
       fail(er) {
-        console.log(er.errors);
+        expect(er.errors.minLength).toBe("姓名最少需要6个字符");
+        expect(er.errors.checkName).toBeTruthy();
       },
     },
     pwd: {
@@ -64,11 +65,11 @@ const av = new AsyncValidate(
 // 验证数据，如果全部成功将返回true，否者将返回false
 expect(
   await av.validate({
-    name: "ajanuw",
+    name: "aja",
     pwd: "12345678",
-    pwd2: "12345678",
+    pwd2: "",
   })
-).toBe(true);
+).toBe(false);
 ```
 
 
@@ -116,9 +117,6 @@ interface AsyncValidateOptions {
 
   required?: ValidateHandleArg;
   validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
-
-  // 通常用来处理object对象
-  fields?: AsyncValidateOptions;
 
   // 监听单个字段的错误,当验证失败(invalid)时，调用
   fail?: (errors: { value: any; errors: AnyObject }) => void;

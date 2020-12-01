@@ -1,12 +1,4 @@
-export interface AnyObject {
-    [k: string]: any;
-}
-export interface ValidateData extends AnyObject {
-}
-export interface AsyncValidateHandle {
-    (input: any, data: ValidateData): AnyObject | undefined | Promise<AnyObject | undefined>;
-}
-export declare type ValidateHandleArg = string | any[];
+import { AnyObject, AsyncValidateHandle, ValidateData, ValidateFailHandle, ValidateHandleArg } from "./interface";
 export interface AsyncValidateOptions {
     string?: ValidateHandleArg;
     number?: ValidateHandleArg;
@@ -21,7 +13,6 @@ export interface AsyncValidateOptions {
     regexp?: ValidateHandleArg;
     required?: ValidateHandleArg;
     validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
-    fields?: AsyncValidateOptions;
     fail?: (errors: {
         value: any;
         errors: AnyObject;
@@ -30,15 +21,6 @@ export interface AsyncValidateOptions {
 }
 export interface Options {
     [key: string]: AsyncValidateHandle | AsyncValidateHandle[] | AsyncValidateOptions;
-}
-export interface ValidateFailFileds {
-    [name: string]: {
-        value: any;
-        errors: AnyObject;
-    };
-}
-export interface ValidateFailHandle {
-    (errorFields: ValidateFailFileds): void;
 }
 export interface ValidateConfig {
     checkAll?: boolean;
@@ -52,9 +34,7 @@ export declare class AsyncValidate {
         [name: string]: (...args: any[]) => AsyncValidateHandle;
     }): void;
     constructor(options: Options, config?: ValidateConfig);
-    private _isSuccess;
-    private _handleValidate;
-    private _eachValidates;
+    private _eachValidators;
     private _fail;
     validate(data: ValidateData): Promise<boolean>;
     static required(msg: string): AsyncValidateHandle;

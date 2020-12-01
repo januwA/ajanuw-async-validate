@@ -25,9 +25,10 @@ describe("main", () => {
                 return { checkName: "检测名称失败" };
             },
           ],
-          // fail(er) {
-          // console.log(er.errors);
-          // },
+          fail(er) {
+            expect(er.errors.minLength).toBe("姓名最少需要6个字符");
+            expect(er.errors.checkName).toBeTruthy();
+          },
         },
         pwd: {
           required: "密码必填",

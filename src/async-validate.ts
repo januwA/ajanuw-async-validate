@@ -1,65 +1,16 @@
-export interface AnyObject {
-  [k: string]: any;
-}
-
-/**
- * 用户需要验证的数据
- *
- * ## Example
- *
- * ```js
- *await av.validate({
- *  name: "ajanuw",
- *  pwd: "12345678",
- *  pwd2: "12345678",
- *})
- * ```
- */
-export interface ValidateData extends AnyObject {}
-
-/**
- * [ValidateData] 中的字段需要的验证函数
- *
- * - 验证成功返回undefined，否则返回错误对象
- */
-export interface AsyncValidateHandle {
-  (input: any, data: ValidateData):
-    | AnyObject
-    | undefined
-    | Promise<AnyObject | undefined>;
-}
-
-/**
- * 如果需要传递多个参数，那么数组最后一个应该是error message
- */
-export type ValidateHandleArg = string | any[];
+import {
+  AnyObject,
+  AsyncValidateHandle,
+  ValidateData,
+  ValidateFailFileds,
+  ValidateFailHandle,
+  ValidateHandleArg,
+} from "./interface";
 
 /**
  * 一种简便的方式设置验证器
- * 
- * ```ts
-  const av = new AsyncValidate({
-    name: {
-      required: "名称必填",
-      validate: [
-        AsyncValidate.minLength(6, "姓名最少需要6个字符"),
-        async function (input) {
-          if (!(await checkName(input as string))) return "检测名称失败";
-        },
-      ],
-    },
-    pwd: [
-      AsyncValidate.required("密码必填"),
-      AsyncValidate.minLength(8, "密码最少需要8个字符"),
-    ],
-    pwd2: {
-      required: "填写确认密码",
-      validate: function (input, data) {
-        if (input !== data.pwd) return "两次密码填写不一样";
-      },
-    },
-  });
- * ```
+ *
+ * 详见测试
  */
 export interface AsyncValidateOptions {
   string?: ValidateHandleArg;
@@ -77,9 +28,6 @@ export interface AsyncValidateOptions {
   required?: ValidateHandleArg;
   validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
 
-  // 通常用来处理object对象
-  fields?: AsyncValidateOptions;
-
   // 监听单个字段的错误,当验证失败(invalid)时，调用
   fail?: (errors: { value: any; errors: AnyObject }) => void;
 
@@ -96,23 +44,6 @@ export interface Options {
     | AsyncValidateOptions;
 }
 
-export interface ValidateFailFileds {
-  /**
-   * name 验证失败的字段
-   */
-  [name: string]: {
-    value: any;
-    errors: AnyObject;
-  };
-}
-
-/**
- * 处理error的函数
- */
-export interface ValidateFailHandle {
-  (errorFields: ValidateFailFileds): void;
-}
-
 export interface ValidateConfig {
   /**
    * 如果为false, 那么检查到一个字段失败，直接返回失败，其余字段将不会进行检查
@@ -124,6 +55,51 @@ export interface ValidateConfig {
    * validateErrorHandle 错误回调
    */
   fail?: ValidateFailHandle;
+}
+
+function isSuccess(errorFileds: ValidateFailFileds) {
+  return Object.keys(errorFileds).length === 0;
+}
+
+/**
+ * 将不同的validator配置，处理为 AsyncValidateHandle[]
+ * @param validators
+ */
+function handleValidators(
+  validators?:
+    | AsyncValidateHandle
+    | AsyncValidateHandle[]
+    | AsyncValidateOptions
+): AsyncValidateHandle[] {
+  if (!validators) return [];
+
+  if (Array.isArray(validators)) return validators;
+
+  if (typeof validators === "function") return [validators];
+
+  if (Object.prototype.toString.call(validators) === "[object Object]") {
+    let vs: AsyncValidateHandle[] = [];
+
+    // 映射AsyncValidate上的静态方法，如果不存在直接抛错，应为可能造成错误的结果
+    for (const key in validators) {
+      if (["validators", "fail"].includes(key)) continue;
+      if (AsyncValidate.hasOwnProperty(key)) {
+        let arg: ValidateHandleArg = (validators as any)[key];
+        if (!Array.isArray(arg)) arg = [arg];
+        const v = (AsyncValidate as any)[key](...arg);
+        vs.push(v);
+      } else {
+        throw new Error(`[[ AsyncValidate ]] not set "${key}" validate.`);
+      }
+    }
+
+    if (!(validators.validators instanceof AsyncValidate))
+      vs = vs.concat(handleValidators(validators.validators));
+
+    return vs;
+  }
+
+  return [];
 }
 
 export class AsyncValidate {
@@ -168,57 +144,16 @@ export class AsyncValidate {
     );
   }
 
-  private _isSuccess(errorFileds: ValidateFailFileds) {
-    return Object.keys(errorFileds).length === 0;
-  }
-
-  private _handleValidate(
-    validators?:
-      | AsyncValidateHandle
-      | AsyncValidateHandle[]
-      | AsyncValidateOptions
-  ): AsyncValidateHandle[] {
-    if (!validators) return [];
-
-    if (Array.isArray(validators)) return validators;
-
-    if (typeof validators === "function") return [validators];
-
-    if (Object.prototype.toString.call(validators) === "[object Object]") {
-      let vs: AsyncValidateHandle[] = [];
-
-      // 映射AsyncValidate上的静态方法，如果不存在直接抛错，应为可能造成错误的结果
-      for (const key in validators) {
-        if (["validators", "fail"].includes(key)) continue;
-        if (AsyncValidate.hasOwnProperty(key)) {
-          let arg: ValidateHandleArg = (validators as any)[key];
-          if (!Array.isArray(arg)) arg = [arg];
-          const v = (AsyncValidate as any)[key](...arg);
-          vs.push(v);
-        } else {
-          throw new Error(`[[ AsyncValidate ]] not set "${key}" validate.`);
-        }
-      }
-
-      if (!(validators.validators instanceof AsyncValidate))
-        vs = vs.concat(this._handleValidate(validators.validators));
-
-      return vs;
-    }
-
-    return [];
-  }
-
-  private async _eachValidates(
+  private async _eachValidators(
     key: string,
     value: any,
     data: ValidateData,
-    cb: (validate: AnyObject) => void
+    errorCallback: (validate: AnyObject) => void
   ) {
-    const validators = this._handleValidate(this.options[key]);
+    const validators = handleValidators(this.options[key]);
     for (const h of validators) {
       const error = await h(value, data);
-      if (error) cb(error);
+      if (error) errorCallback(error);
     }
   }
 
@@ -233,7 +168,7 @@ export class AsyncValidate {
    */
   async validate(data: ValidateData): Promise<boolean> {
     const errorFileds: ValidateFailFileds = {};
-    let success: boolean = this._isSuccess(errorFileds);
+    let success: boolean = isSuccess(errorFileds);
 
     // 遍历需要验证的数据
     for (const key in data) {
@@ -245,8 +180,8 @@ export class AsyncValidate {
         continue;
       }
 
-      // 遍历验证器
-      await this._eachValidates(key, value, data, (error) => {
+      // 遍历这个字段的验证器
+      await this._eachValidators(key, value, data, (error) => {
         if (!errorFileds[key]) {
           errorFileds[key] = {
             value,
@@ -256,7 +191,7 @@ export class AsyncValidate {
         Object.assign(errorFileds[key].errors, error);
       });
 
-      // 每个字段中定义的fail
+      // 每个字段中定义的fail，会被通知错误
       if (
         errorFileds.hasOwnProperty(key) &&
         this.options[key].hasOwnProperty("fail")
@@ -264,14 +199,14 @@ export class AsyncValidate {
         (this.options[key] as any).fail(errorFileds[key]);
       }
 
-      // 每当一个字段出现错误,触发验证器的fail
-      success = this._isSuccess(errorFileds);
+      // 每当一个字段出现错误,触发验证器的fail，然后结束验证
+      success = isSuccess(errorFileds);
       if (!success && !this.config.checkAll) {
         this._fail(errorFileds);
         break;
       }
 
-      // object验证
+      // object验证，使用AsyncValidate
       if (
         this.options[key].hasOwnProperty("validators") &&
         (this.options[key] as AsyncValidateOptions).validators instanceof
@@ -279,15 +214,11 @@ export class AsyncValidate {
       ) {
         const av = (this.options[key] as AsyncValidateOptions)
           .validators as AsyncValidate;
-        if (!av.config.fail) {
-          av.config.fail = this.config.fail;
-        }
+        if (!av.config.fail) av.config.fail = this.config.fail;
         success = await av.validate(value);
-        if (!this.config.checkAll && !success) {
-          break;
-        }
+        if (!this.config.checkAll && !success) break;
       }
-    }
+    } // for end
 
     if (!success && this.config.checkAll) {
       this._fail(errorFileds);
@@ -306,16 +237,14 @@ export class AsyncValidate {
   // 最小长度
   static minLength(len: number, msg: string): AsyncValidateHandle {
     return (input) => {
-      if (typeof input === "string" && input.length < parseFloat(len as any))
-        return { minLength: msg };
+      if (input.length < parseFloat(len as any)) return { minLength: msg };
     };
   }
 
   // 最大长度
   static maxLength(len: number, msg: string): AsyncValidateHandle {
     return (input) => {
-      if (typeof input === "string" && input.length > parseFloat(len as any))
-        return { maxLength: msg };
+      if (input.length > parseFloat(len as any)) return { maxLength: msg };
     };
   }
 
