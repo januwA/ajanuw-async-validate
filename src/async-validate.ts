@@ -39,6 +39,7 @@ export interface AsyncValidateOptions {
  */
 export interface Options {
   [key: string]:
+    | null
     | AsyncValidateHandle
     | AsyncValidateHandle[]
     | AsyncValidateOptions;
@@ -46,13 +47,13 @@ export interface Options {
 
 export interface ValidateConfig {
   /**
-   * 如果为false, 那么检查到一个字段失败，直接返回失败，其余字段将不会进行检查
-   * 如果为true, 那么检查检查完所有字段的验证器
+   * 如果为false, 检查到一个字段失败，直接返回失败，其余字段将不会进行检查
+   * 如果为true, 会检查完所有字段的验证器
    */
   checkAll?: boolean;
 
   /**
-   * validateErrorHandle 错误回调
+   * 字段验证失败时，用户处理错误的函数
    */
   fail?: ValidateFailHandle;
 }
@@ -106,9 +107,34 @@ export class AsyncValidate {
   config: ValidateConfig;
 
   /**
-   * 设置这个错误处理函数，将用在所有的验证器上
+   * 设置所有验证器的错误处理
    */
   static fail?: ValidateFailHandle;
+
+  /**
+   * 提取第一个错误字段的第一个错误消息
+   *
+   * ```js
+   * AsyncValidate.oneError({
+   *   name: { errors: { required: 'name is required!' }, value: ''}
+   * }) // 'name is required!'
+   * ```
+   * @param errorFields
+   */
+  static oneError(errorFields: ValidateFailFileds) {
+    if (errorFields && Object.keys(errorFields).length) {
+      return Object.values(errorFields[Object.keys(errorFields)[0]].errors)[0];
+    }
+  }
+
+  constructor(public readonly options: Options, config?: ValidateConfig) {
+    this.config = Object.assign(
+      {
+        checkAll: false,
+      },
+      config
+    );
+  }
 
   /**
    * 定义全局的验证器
@@ -135,25 +161,18 @@ export class AsyncValidate {
       .forEach((k) => ((AsyncValidate as any)[k] = (handles as any)[k]));
   }
 
-  constructor(public readonly options: Options, config?: ValidateConfig) {
-    this.config = Object.assign(
-      {
-        checkAll: false,
-      },
-      config
-    );
-  }
-
   private async _eachValidators(
     key: string,
     value: any,
     data: ValidateData,
     errorCallback: (validate: AnyObject) => void
   ) {
-    const validators = handleValidators(this.options[key]);
-    for (const h of validators) {
-      const error = await h(value, data);
-      if (error) errorCallback(error);
+    if (this.options[key] !== null) {
+      const validators = handleValidators(this.options[key]!);
+      for (const h of validators) {
+        const error = await h(value, data);
+        if (error) errorCallback(error);
+      }
     }
   }
 
@@ -180,6 +199,9 @@ export class AsyncValidate {
         continue;
       }
 
+      // 字段验证设置为null，将跳过验证
+      if (this.options[key] === null) continue;
+
       // 遍历这个字段的验证器
       await this._eachValidators(key, value, data, (error) => {
         if (!errorFileds[key]) {
@@ -194,7 +216,7 @@ export class AsyncValidate {
       // 每个字段中定义的fail，会被通知错误
       if (
         errorFileds.hasOwnProperty(key) &&
-        this.options[key].hasOwnProperty("fail")
+        this.options[key]!.hasOwnProperty("fail")
       ) {
         (this.options[key] as any).fail(errorFileds[key]);
       }
@@ -208,7 +230,7 @@ export class AsyncValidate {
 
       // object验证，使用AsyncValidate
       if (
-        this.options[key].hasOwnProperty("validators") &&
+        this.options[key]!.hasOwnProperty("validators") &&
         (this.options[key] as AsyncValidateOptions).validators instanceof
           AsyncValidate
       ) {

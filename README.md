@@ -1,37 +1,42 @@
-## 一个简单的异步表单验证器
+## ajanuw-async-validate
+
+Asynchronous form validator
 
 ## install
 ```sh
 $ npm i ajanuw-async-validate
 ```
 
-## 使用
+## Use
 ```ts
 import { AsyncValidate } from "ajanuw-async-validate";
 
+// Custom field validation
 function checkName(name: string) {
   return new Promise((res) => {
     setTimeout(() => {
       if (name === "ajanuw") {
-        res(true);
+        res(null);
       } else {
-        res(false);
+        res({ checkName: "name error." });
       }
     }, 1000);
   });
 }
 
+// Create an asynchronous validator
 const av = new AsyncValidate(
   {
     name: {
-      required: "名称必填",
+      required: "name is required",
       validators: [
         AsyncValidate.minLength(6, "姓名最少需要6个字符"),
-        async function (input) {
-          if (!(await checkName(input as string)))
-            return { checkName: "检测名称失败" };
-        },
+
+        // Asynchronous validation of the "name" field
+        checkName,
       ],
+
+      // When "name" verification fails, this "fail" function will be called
       fail(er) {
         expect(er.errors.minLength).toBe("姓名最少需要6个字符");
         expect(er.errors.checkName).toBeTruthy();
@@ -49,7 +54,11 @@ const av = new AsyncValidate(
     },
   },
   {
+    // By default, it will return directly when the first error is detected
     checkAll: true,
+
+    // You can handle all errors here
+    // If this "fail" is set, "AsyncValidate.fail" will not be called
     fail: function (erFields) {
       expect("name" in erFields).toBe(true);
       expect(erFields.name.errors.minLength).toBe("姓名最少需要6个字符");
@@ -62,7 +71,7 @@ const av = new AsyncValidate(
   }
 );
 
-// 验证数据，如果全部成功将返回true，否者将返回false
+// Verify the data, if all are successful, it will return "true", otherwise it will return "false"
 expect(
   await av.validate({
     name: "aja",
@@ -73,7 +82,70 @@ expect(
 ```
 
 
-## mixin 定义全局的验证器
+## Set field validator
+```ts
+import { AsyncValidate } from "ajanuw-async-validate";
+
+// Set up a single
+new AsyncValidate({
+  name: AsyncValidate.required("name is required!"),
+});
+
+// Set multiple
+new AsyncValidate({
+  name: [AsyncValidate.required("name is required!")],
+});
+
+// Can also be like this
+new AsyncValidate({
+  name: {
+    required: "name is required!"
+  }
+})
+
+// Set to "null" to skip the verification of this field
+new AsyncValidate({
+  name: null,
+})
+
+
+// Verify Object value
+const av = new AsyncValidate(
+  {
+    name: AsyncValidate.required("name is requries!"),
+    address: {
+      object: "address error.",
+      validators: new AsyncValidate(
+        {
+          street: {
+            required: "require street.",
+          },
+          zip: {
+            required: "require street.",
+          },
+        },
+        { checkAll: true }
+      ),
+    },
+  },
+  {
+    fail(erFields) {
+      console.log(erFields);
+    },
+  }
+);
+
+await av.validate({
+    name: "ajanuw",
+    address: {
+      street: "",
+      zip: "",
+    },
+})
+```
+
+
+## Use "mixin" to define a global validator
 ```ts
 AsyncValidate.mixin({
   enum(c: any[], msg: string) {
@@ -97,9 +169,6 @@ expect(await av.validate({ value: "d" })).toBe(false);
 
 ## AsyncValidateOptions
 ```ts
-/**
- * 如果需要传递多个参数，那么数组最后一个应该是error message
- */
 type ValidateHandleArg = string | any[];
 
 interface AsyncValidateOptions {
@@ -113,19 +182,24 @@ interface AsyncValidateOptions {
   json?: ValidateHandleArg; // try JSON.parse()
   email?: ValidateHandleArg;
   hex?: ValidateHandleArg; // 0x0A 0Ah 0A
-  regexp?: ValidateHandleArg; // /a/ new RegExp()
-
+  regexp?: ValidateHandleArg; // /a/, new RegExp()
   required?: ValidateHandleArg;
   validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
-
-  // 监听单个字段的错误,当验证失败(invalid)时，调用
   fail?: (errors: { value: any; errors: AnyObject }) => void;
-
   [name: string]: any;
 }
 ```
 
-更多功能[请看测试](https://github.com/januwA/ajanuw-async-validate/blob/main/test/test.test.ts)
+## Set error handling for all validators
+```ts
+import { AsyncValidate } from "ajanuw-async-validate";
+
+AsyncValidate.fail = (erFields) => {
+ //...
+}
+```
+
+More features, [please see the test](https://github.com/januwA/ajanuw-async-validate/blob/main/test/test.test.ts)
 
 ## build
 > $ npm run build

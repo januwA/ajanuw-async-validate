@@ -1,4 +1,4 @@
-import { AnyObject, AsyncValidateHandle, ValidateData, ValidateFailHandle, ValidateHandleArg } from "./interface";
+import { AnyObject, AsyncValidateHandle, ValidateData, ValidateFailFileds, ValidateFailHandle, ValidateHandleArg } from "./interface";
 export interface AsyncValidateOptions {
     string?: ValidateHandleArg;
     number?: ValidateHandleArg;
@@ -20,7 +20,7 @@ export interface AsyncValidateOptions {
     [name: string]: any;
 }
 export interface Options {
-    [key: string]: AsyncValidateHandle | AsyncValidateHandle[] | AsyncValidateOptions;
+    [key: string]: null | AsyncValidateHandle | AsyncValidateHandle[] | AsyncValidateOptions;
 }
 export interface ValidateConfig {
     checkAll?: boolean;
@@ -30,10 +30,11 @@ export declare class AsyncValidate {
     readonly options: Options;
     config: ValidateConfig;
     static fail?: ValidateFailHandle;
+    static oneError(errorFields: ValidateFailFileds): any;
+    constructor(options: Options, config?: ValidateConfig);
     static mixin(handles: {
         [name: string]: (...args: any[]) => AsyncValidateHandle;
     }): void;
-    constructor(options: Options, config?: ValidateConfig);
     private _eachValidators;
     private _fail;
     validate(data: ValidateData): Promise<boolean>;

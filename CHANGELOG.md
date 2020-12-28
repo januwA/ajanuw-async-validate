@@ -1,3 +1,8 @@
+## 0.4.0 2020/12/28
+
+- update readme
+- add `AsyncValidate.oneError`
+
 ## 0.3.1 2020/12/1
 
 - update readme

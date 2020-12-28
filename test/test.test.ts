@@ -6,9 +6,9 @@ describe("main", () => {
       return new Promise((res) => {
         setTimeout(() => {
           if (name === "ajanuw") {
-            res(true);
+            res(null);
           } else {
-            res(false);
+            res({ checkName: "检测名称失败" });
           }
         }, 1000);
       });
@@ -20,10 +20,7 @@ describe("main", () => {
           required: "名称必填",
           validators: [
             AsyncValidate.minLength(6, "姓名最少需要6个字符"),
-            async function (input) {
-              if (!(await checkName(input as string)))
-                return { checkName: "检测名称失败" };
-            },
+            checkName,
           ],
           fail(er) {
             expect(er.errors.minLength).toBe("姓名最少需要6个字符");
@@ -70,6 +67,40 @@ describe("main", () => {
         pwd2: "",
       })
     ).toBe(false);
+  });
+
+  it("test skip validate", async () => {
+    const av = new AsyncValidate({
+      name: null,
+      age: [],
+    });
+
+    expect(
+      await av.validate({
+        name: "x",
+        age: "",
+      })
+    ).toBe(true);
+  });
+
+  it("test oneError", async () => {
+    const av = new AsyncValidate(
+      {
+        name: {
+          required: "name is required!",
+        },
+      },
+      {
+        fail(er) {
+          expect(AsyncValidate.oneError(er)).toBe("name is required!");
+        },
+      }
+    );
+
+    const r = await av.validate({
+      name: "",
+    });
+    expect(r).toBe(false);
   });
 
   it("test max", async () => {
@@ -241,6 +272,7 @@ describe("main", () => {
 
     const av2 = new AsyncValidate(
       {
+        name: AsyncValidate.required("name is requries!"),
         address: {
           object: "address error.",
           validators: new AsyncValidate(
@@ -268,6 +300,7 @@ describe("main", () => {
     );
     expect(
       await av2.validate({
+        name: "ajanuw",
         address: {
           street: "",
           zip: "",
