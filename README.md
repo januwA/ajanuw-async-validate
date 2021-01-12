@@ -115,8 +115,7 @@ const av = new AsyncValidate(
     name: AsyncValidate.required("name is requries!"),
     address: {
       object: "address error.",
-      validators: new AsyncValidate(
-        {
+      validators: {
           street: {
             required: "require street.",
           },
@@ -124,8 +123,6 @@ const av = new AsyncValidate(
             required: "require street.",
           },
         },
-        { checkAll: true }
-      ),
     },
   },
   {

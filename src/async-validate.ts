@@ -1,7 +1,6 @@
 import {
   AnyObject,
   AsyncValidateHandle,
-  ValidateData,
   ValidateFailFileds,
   ValidateFailHandle,
   ValidateHandleArg,
@@ -26,7 +25,11 @@ export interface AsyncValidateOptions {
   regexp?: ValidateHandleArg; // /a/ new RegExp()
 
   required?: ValidateHandleArg;
-  validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
+  validators?:
+    | AsyncValidate
+    | AsyncValidateHandle
+    | AsyncValidateHandle[]
+    | IValidateConfig /* to AsyncValidate */;
 
   // 监听单个字段的错误,当验证失败(invalid)时，调用
   fail?: (errors: { value: any; errors: AnyObject }) => void;
@@ -37,7 +40,7 @@ export interface AsyncValidateOptions {
 /**
  * 验证器配置
  */
-export interface Options {
+export interface IValidateConfig {
   [key: string]:
     | null
     | AsyncValidateHandle
@@ -45,10 +48,13 @@ export interface Options {
     | AsyncValidateOptions;
 }
 
-export interface ValidateConfig {
+export interface IOptions {
   /**
    * 如果为false, 检查到一个字段失败，直接返回失败，其余字段将不会进行检查
+   *
    * 如果为true, 会检查完所有字段的验证器
+   *
+   * default: false
    */
   checkAll?: boolean;
 
@@ -56,14 +62,31 @@ export interface ValidateConfig {
    * 字段验证失败时，用户处理错误的函数
    */
   fail?: ValidateFailHandle;
+
+  /**
+   * 无视掉没有设置验证器的字段
+   *
+   * default: true
+   */
+  ignore?: boolean;
 }
 
 function isSuccess(errorFileds: ValidateFailFileds) {
   return Object.keys(errorFileds).length === 0;
 }
 
+function isObject(data: any): boolean {
+  return Object.prototype.toString.call(data) === "[object Object]";
+}
+
+const VALIDATORS = "validators";
+
+function hasValidators(obj: any): obj is AsyncValidateOptions {
+  return obj.hasOwnProperty(VALIDATORS);
+}
+
 /**
- * 将不同的validator配置，处理为 AsyncValidateHandle[]
+ * 将不同的validators，处理为 AsyncValidateHandle[]
  * @param validators
  */
 function handleValidators(
@@ -78,12 +101,12 @@ function handleValidators(
 
   if (typeof validators === "function") return [validators];
 
-  if (Object.prototype.toString.call(validators) === "[object Object]") {
+  if (isObject(validators)) {
     let vs: AsyncValidateHandle[] = [];
 
     // 映射AsyncValidate上的静态方法，如果不存在直接抛错，应为可能造成错误的结果
     for (const key in validators) {
-      if (["validators", "fail"].includes(key)) continue;
+      if ([VALIDATORS, "fail"].includes(key)) continue;
       if (AsyncValidate.hasOwnProperty(key)) {
         let arg: ValidateHandleArg = (validators as any)[key];
         if (!Array.isArray(arg)) arg = [arg];
@@ -94,8 +117,12 @@ function handleValidators(
       }
     }
 
-    if (!(validators.validators instanceof AsyncValidate))
+    if (
+      !(validators.validators instanceof AsyncValidate) &&
+      !isObject(validators.validators)
+    ) {
       vs = vs.concat(handleValidators(validators.validators));
+    }
 
     return vs;
   }
@@ -104,7 +131,7 @@ function handleValidators(
 }
 
 export class AsyncValidate {
-  config: ValidateConfig;
+  options: IOptions;
 
   /**
    * 设置所有验证器的错误处理
@@ -127,12 +154,16 @@ export class AsyncValidate {
     }
   }
 
-  constructor(public readonly options: Options, config?: ValidateConfig) {
-    this.config = Object.assign(
+  constructor(
+    public readonly validateConfig: IValidateConfig,
+    options?: IOptions
+  ) {
+    this.options = Object.assign(
       {
         checkAll: false,
+        ignore: true,
       },
-      config
+      options
     );
   }
 
@@ -164,11 +195,11 @@ export class AsyncValidate {
   private async _eachValidators(
     key: string,
     value: any,
-    data: ValidateData,
+    data: AnyObject,
     errorCallback: (validate: AnyObject) => void
   ) {
-    if (this.options[key] !== null) {
-      const validators = handleValidators(this.options[key]!);
+    if (this.validateConfig[key] !== null) {
+      const validators = handleValidators(this.validateConfig[key]!);
       for (const h of validators) {
         const error = await h(value, data);
         if (error) errorCallback(error);
@@ -177,7 +208,8 @@ export class AsyncValidate {
   }
 
   private _fail(errorFileds: ValidateFailFileds) {
-    if (this.config.fail) this.config.fail(errorFileds);
+    if (isSuccess(errorFileds)) return;
+    if (this.options.fail) this.options.fail(errorFileds);
     else if (AsyncValidate.fail) AsyncValidate.fail(errorFileds);
   }
 
@@ -185,22 +217,23 @@ export class AsyncValidate {
    * 开始验证
    * @param data
    */
-  async validate(data: ValidateData): Promise<boolean> {
+  async validate(data: AnyObject): Promise<boolean> {
     const errorFileds: ValidateFailFileds = {};
-    let success: boolean = isSuccess(errorFileds);
+    let success = true;
 
     // 遍历需要验证的数据
-    for (const key in data) {
-      const value: any = data[key];
-
+    for (const [key, value] of Object.entries(data)) {
       // 是否设置了这个字段的验证器
-      if (!this.options.hasOwnProperty(key)) {
-        console.warn(`[[ AsyncValidate ]] "${key}" validate is not set.`);
+      if (!this.validateConfig.hasOwnProperty(key)) {
+        if (!this.options.ignore)
+          console.warn(`[[ AsyncValidate ]] "${key}" validate is not set.`);
         continue;
       }
 
+      const keyValidate = this.validateConfig[key];
+
       // 字段验证设置为null，将跳过验证
-      if (this.options[key] === null) continue;
+      if (keyValidate === null) continue;
 
       // 遍历这个字段的验证器
       await this._eachValidators(key, value, data, (error) => {
@@ -216,36 +249,39 @@ export class AsyncValidate {
       // 每个字段中定义的fail，会被通知错误
       if (
         errorFileds.hasOwnProperty(key) &&
-        this.options[key]!.hasOwnProperty("fail")
+        keyValidate.hasOwnProperty("fail")
       ) {
-        (this.options[key] as any).fail(errorFileds[key]);
+        (keyValidate as any).fail(errorFileds[key]);
       }
 
       // 每当一个字段出现错误,触发验证器的fail，然后结束验证
       success = isSuccess(errorFileds);
-      if (!success && !this.config.checkAll) {
+      if (!success && !this.options.checkAll) {
         this._fail(errorFileds);
         break;
       }
 
+      // validators: {} to validators: new AsyncValidate({}, parentOptions)
+      if (hasValidators(keyValidate) && isObject(keyValidate.validators)) {
+        keyValidate.validators = new AsyncValidate(
+          keyValidate.validators as IValidateConfig,
+          this.options
+        );
+      }
+
       // object验证，使用AsyncValidate
       if (
-        this.options[key]!.hasOwnProperty("validators") &&
-        (this.options[key] as AsyncValidateOptions).validators instanceof
-          AsyncValidate
+        hasValidators(keyValidate) &&
+        keyValidate.validators instanceof AsyncValidate
       ) {
-        const av = (this.options[key] as AsyncValidateOptions)
-          .validators as AsyncValidate;
-        if (!av.config.fail) av.config.fail = this.config.fail;
+        const av = keyValidate.validators as AsyncValidate;
+        if (!av.options.fail) av.options.fail = this.options.fail;
         success = await av.validate(value);
-        if (!this.config.checkAll && !success) break;
+        if (!success && !this.options.checkAll) break;
       }
     } // for end
 
-    if (!success && this.config.checkAll) {
-      this._fail(errorFileds);
-    }
-
+    if (!success && this.options.checkAll) this._fail(errorFileds);
     return success;
   }
 

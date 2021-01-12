@@ -1,4 +1,4 @@
-import { AnyObject, AsyncValidateHandle, ValidateData, ValidateFailFileds, ValidateFailHandle, ValidateHandleArg } from "./interface";
+import { AnyObject, AsyncValidateHandle, ValidateFailFileds, ValidateFailHandle, ValidateHandleArg } from "./interface";
 export interface AsyncValidateOptions {
     string?: ValidateHandleArg;
     number?: ValidateHandleArg;
@@ -12,32 +12,33 @@ export interface AsyncValidateOptions {
     hex?: ValidateHandleArg;
     regexp?: ValidateHandleArg;
     required?: ValidateHandleArg;
-    validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
+    validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[] | IValidateConfig;
     fail?: (errors: {
         value: any;
         errors: AnyObject;
     }) => void;
     [name: string]: any;
 }
-export interface Options {
+export interface IValidateConfig {
     [key: string]: null | AsyncValidateHandle | AsyncValidateHandle[] | AsyncValidateOptions;
 }
-export interface ValidateConfig {
+export interface IOptions {
     checkAll?: boolean;
     fail?: ValidateFailHandle;
+    ignore?: boolean;
 }
 export declare class AsyncValidate {
-    readonly options: Options;
-    config: ValidateConfig;
+    readonly validateConfig: IValidateConfig;
+    options: IOptions;
     static fail?: ValidateFailHandle;
     static oneError(errorFields: ValidateFailFileds): any;
-    constructor(options: Options, config?: ValidateConfig);
+    constructor(validateConfig: IValidateConfig, options?: IOptions);
     static mixin(handles: {
         [name: string]: (...args: any[]) => AsyncValidateHandle;
     }): void;
     private _eachValidators;
     private _fail;
-    validate(data: ValidateData): Promise<boolean>;
+    validate(data: AnyObject): Promise<boolean>;
     static required(msg: string): AsyncValidateHandle;
     static minLength(len: number, msg: string): AsyncValidateHandle;
     static maxLength(len: number, msg: string): AsyncValidateHandle;
@@ -59,4 +60,3 @@ export declare class AsyncValidate {
     static json(msg: string): AsyncValidateHandle;
     static regexp(msg: string): AsyncValidateHandle;
 }
-//# sourceMappingURL=async-validate.d.ts.map

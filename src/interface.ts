@@ -3,27 +3,12 @@ export interface AnyObject {
 }
 
 /**
- * 用户需要验证的数据
- *
- * ## Example
- *
- * ```js
- *await av.validate({
- *  name: "ajanuw",
- *  pwd: "12345678",
- *  pwd2: "12345678",
- *})
- * ```
- */
-export interface ValidateData extends AnyObject {}
-
-/**
  * [ValidateData] 中的字段需要的验证函数
  *
  * - 验证成功返回undefined，否则返回错误对象
  */
 export interface AsyncValidateHandle {
-  (input: any, data: ValidateData):
+  (input: any, data: AnyObject):
     | AnyObject
     | undefined
     | Promise<AnyObject | undefined>;

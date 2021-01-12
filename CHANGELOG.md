@@ -1,3 +1,7 @@
+## 0.5.0 2021/1/12
+
+- add "options.ignore"
+
 ## 0.4.0 2020/12/28
 
 - update readme
