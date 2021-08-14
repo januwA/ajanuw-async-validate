@@ -1,25 +1,17 @@
 import { AsyncValidate } from "../src";
 describe("example", () => {
   it("test validate", async () => {
-    function asyncCheckName(name: string) {
-      return new Promise((res) => {
-        setTimeout(() => {
-          if (name === "ajanuw") {
-            res(null);
-          } else {
-            res({ checkName: "检测名称失败" });
-          }
-        }, 1000);
-      });
-    }
-
     const av = new AsyncValidate(
       {
         name: {
           required: "名称必填",
           validators: [
             AsyncValidate.minLength(6, "姓名最少需要6个字符"),
-            asyncCheckName,
+
+            (name: string) =>
+              Promise.resolve(
+                name === "ajanuw" ? null : { checkName: "name error." }
+              ),
           ],
           fail(er) {
             expect(er.errors.minLength).toBe("姓名最少需要6个字符");
@@ -32,9 +24,8 @@ describe("example", () => {
         },
         pwd2: {
           required: "填写确认密码",
-          validators: function (input, data) {
-            if (input !== data.pwd) return { checkPwd: "两次密码填写不一样" };
-          },
+          validators: (input, data) =>
+            input !== data.pwd ? { checkPwd: "两次密码填写不一样" } : null,
         },
       },
       {

@@ -11,29 +11,17 @@ $ npm i ajanuw-async-validate
 ```ts
 import { AsyncValidate } from "ajanuw-async-validate";
 
-// Custom field validation
-function checkName(name: string) {
-  return new Promise((res) => {
-    setTimeout(() => {
-      if (name === "ajanuw") {
-        res(null);
-      } else {
-        res({ checkName: "name error." });
-      }
-    }, 1000);
-  });
-}
-
 // Create an asynchronous validator
 const av = new AsyncValidate(
   {
+
     name: {
       required: "name is required",
       validators: [
         AsyncValidate.minLength(6, "姓名最少需要6个字符"),
 
-        // Asynchronous validation of the "name" field
-        checkName,
+        // Custom validator
+        (name:string, data:any) => Promise.resolve( name === 'ajanuw' ? null : { checkName: "name error." } )
       ],
 
       // When "name" verification fails, this "fail" function will be called
@@ -42,16 +30,18 @@ const av = new AsyncValidate(
         expect(er.errors.checkName).toBeTruthy();
       },
     },
+
     pwd: {
       required: "密码必填",
       minLength: [8, "密码最少需要8个字符"],
     },
+
     pwd2: {
       required: "填写确认密码",
-      validators: function (input, data) {
-        if (input !== data.pwd) return { checkPwd: "两次密码填写不一样" };
+      validators: (input, data) => input !== data.pwd ? { checkPwd: "两次密码填写不一样" } : null
       },
     },
+
   },
   {
     // By default, it will return directly when the first error is detected
@@ -93,7 +83,7 @@ new AsyncValidate({
 
 // Set multiple
 new AsyncValidate({
-  name: [AsyncValidate.required("name is required!")],
+  name: [ AsyncValidate.required("name is required!") ],
 });
 
 // Can also be like this
@@ -127,7 +117,7 @@ const av = new AsyncValidate(
   },
   {
     fail(erFields) {
-      console.log(erFields);
+      console.error(erFields);
     },
   }
 );
@@ -193,6 +183,13 @@ import { AsyncValidate } from "ajanuw-async-validate";
 
 AsyncValidate.fail = (erFields) => {
  //...
+}
+```
+
+## Get the first error string
+```ts
+AsyncValidate.fail = (erFields) => {
+ AsyncValidate.firstError(erFields) // first error string
 }
 ```
 

@@ -81,7 +81,7 @@ function isObject(data: any): boolean {
 
 const VALIDATORS = "validators";
 
-function hasValidators(obj: any): obj is AsyncValidateOptions {
+function isValidators(obj: any): obj is AsyncValidateOptions {
   return obj.hasOwnProperty(VALIDATORS);
 }
 
@@ -142,13 +142,14 @@ export class AsyncValidate {
    * 提取第一个错误字段的第一个错误消息
    *
    * ```js
-   * AsyncValidate.oneError({
+   * err = AsyncValidate.firstError({
    *   name: { errors: { required: 'name is required!' }, value: ''}
-   * }) // 'name is required!'
+   * }) 
+   * 
+   * err === 'name is required!'
    * ```
-   * @param errorFields
    */
-  static oneError(errorFields: ValidateFailFileds) {
+  static firstError(errorFields: ValidateFailFileds) {
     if (errorFields && Object.keys(errorFields).length) {
       return Object.values(errorFields[Object.keys(errorFields)[0]].errors)[0];
     }
@@ -214,7 +215,7 @@ export class AsyncValidate {
   }
 
   /**
-   * 开始验证
+   * 验证数据
    * @param data
    */
   async validate(data: AnyObject): Promise<boolean> {
@@ -262,7 +263,7 @@ export class AsyncValidate {
       }
 
       // validators: {} to validators: new AsyncValidate({}, parentOptions)
-      if (hasValidators(keyValidate) && isObject(keyValidate.validators)) {
+      if (isValidators(keyValidate) && isObject(keyValidate.validators)) {
         keyValidate.validators = new AsyncValidate(
           keyValidate.validators as IValidateConfig,
           this.options
@@ -271,10 +272,10 @@ export class AsyncValidate {
 
       // object验证，使用AsyncValidate
       if (
-        hasValidators(keyValidate) &&
+        isValidators(keyValidate) &&
         keyValidate.validators instanceof AsyncValidate
       ) {
-        const av = keyValidate.validators as AsyncValidate;
+        const av = keyValidate.validators;
         if (!av.options.fail) av.options.fail = this.options.fail;
         success = await av.validate(value);
         if (!success && !this.options.checkAll) break;

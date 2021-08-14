@@ -24,7 +24,7 @@ describe("main", () => {
       },
       {
         fail(er) {
-          expect(AsyncValidate.oneError(er)).toBe("name is required!");
+          expect(AsyncValidate.firstError(er)).toBe("name is required!");
         },
       }
     );

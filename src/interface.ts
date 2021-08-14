@@ -2,16 +2,13 @@ export interface AnyObject {
   [k: string]: any;
 }
 
-/**
- * [ValidateData] 中的字段需要的验证函数
- *
- * - 验证成功返回undefined，否则返回错误对象
- */
+export type AsyncValidateResult = AnyObject | undefined | null;
+export type AsyncValidatePromiseResult = Promise<AsyncValidateResult>;
+
 export interface AsyncValidateHandle {
   (input: any, data: AnyObject):
-    | AnyObject
-    | undefined
-    | Promise<AnyObject | undefined>;
+    | AsyncValidateResult
+    | AsyncValidatePromiseResult;
 }
 
 /**

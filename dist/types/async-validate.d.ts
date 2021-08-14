@@ -31,7 +31,7 @@ export declare class AsyncValidate {
     readonly validateConfig: IValidateConfig;
     options: IOptions;
     static fail?: ValidateFailHandle;
-    static oneError(errorFields: ValidateFailFileds): any;
+    static firstError(errorFields: ValidateFailFileds): any;
     constructor(validateConfig: IValidateConfig, options?: IOptions);
     static mixin(handles: {
         [name: string]: (...args: any[]) => AsyncValidateHandle;
@@ -60,3 +60,4 @@ export declare class AsyncValidate {
     static json(msg: string): AsyncValidateHandle;
     static regexp(msg: string): AsyncValidateHandle;
 }
+//# sourceMappingURL=async-validate.d.ts.map

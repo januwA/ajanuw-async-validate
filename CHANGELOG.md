@@ -1,3 +1,9 @@
+## 0.6.0 2021/8/14
+
+- 更新 readme
+- oneError 重命名为 firstError
+
+
 ## 0.5.0 2021/1/12
 
 - add "options.ignore"
