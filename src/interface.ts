@@ -16,12 +16,13 @@ export interface AsyncValidateHandle {
  */
 export type ValidateHandleArg = string | any[];
 
-export interface ValidateFailFileds {
+export interface ValidateFailFileds<T> {
   /**
    * name 验证失败的字段
    */
   [name: string]: {
     value: any;
+    data: T;
     errors: AnyObject;
   };
 }
@@ -29,6 +30,6 @@ export interface ValidateFailFileds {
 /**
  * 处理error的函数
  */
-export interface ValidateFailHandle {
-  (errorFields: ValidateFailFileds): void;
+export interface ValidateFailHandle<T> {
+  (errorFields: ValidateFailFileds<T>): void;
 }

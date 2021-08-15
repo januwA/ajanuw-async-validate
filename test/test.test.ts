@@ -1,8 +1,20 @@
-import { AsyncValidate } from "../src";
+import { AsyncValidate as AV } from "../src";
 
 describe("main", () => {
+  it("test empty data", async () => {
+    const av = new AV({
+      username: AV.required("名称必填!"),
+    });
+
+    expect(
+      await av.validate({ username: "" }, (e) => {
+        expect(e.username.errors.required).toBe("名称必填!");
+      })
+    ).toBe(false);
+  });
+
   it("test skip validate", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       name: null,
       age: [],
     });
@@ -15,8 +27,8 @@ describe("main", () => {
     ).toBe(true);
   });
 
-  it("test oneError", async () => {
-    const av = new AsyncValidate(
+  it("test firstError", async () => {
+    const av = new AV(
       {
         name: {
           required: "name is required!",
@@ -24,20 +36,16 @@ describe("main", () => {
       },
       {
         fail(er) {
-          expect(AsyncValidate.firstError(er)).toBe("name is required!");
+          expect(AV.firstError(er)).toBe("name is required!");
         },
       }
     );
-
-    const r = await av.validate({
-      name: "",
-    });
-    expect(r).toBe(false);
+    expect(await av.validate({ name: undefined })).toBe(false);
   });
 
   it("test max", async () => {
-    const av = new AsyncValidate({
-      value: AsyncValidate.max(10, "不能超过10"),
+    const av = new AV({
+      value: AV.max(10, "不能超过10"),
     });
     expect(
       await av.validate({
@@ -53,7 +61,7 @@ describe("main", () => {
   });
 
   it("test min", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       value: {
         min: [10, "不能小于10"],
       },
@@ -72,12 +80,12 @@ describe("main", () => {
   });
 
   it("test hex", async () => {
-    const av = new AsyncValidate({
-      a: AsyncValidate.hex("value is not a hex"),
-      b: AsyncValidate.hex("value is not a hex"),
-      c: AsyncValidate.hex("value is not a hex"),
-      d: AsyncValidate.hex("value is not a hex"),
-      e: AsyncValidate.hex("value is not a hex"),
+    const av = new AV({
+      a: AV.hex("value is not a hex"),
+      b: AV.hex("value is not a hex"),
+      c: AV.hex("value is not a hex"),
+      d: AV.hex("value is not a hex"),
+      e: AV.hex("value is not a hex"),
     });
     expect(
       await av.validate({
@@ -91,8 +99,8 @@ describe("main", () => {
   });
 
   it("test number", async () => {
-    const av = new AsyncValidate({
-      a: AsyncValidate.number("value is not a number"),
+    const av = new AV({
+      a: AV.number("value is not a number"),
     });
     expect(
       await av.validate({
@@ -113,8 +121,8 @@ describe("main", () => {
   });
 
   it("test int", async () => {
-    const av = new AsyncValidate({
-      a: AsyncValidate.int("value is not a int"),
+    const av = new AV({
+      a: AV.int("value is not a int"),
     });
     expect(
       await av.validate({
@@ -141,8 +149,8 @@ describe("main", () => {
   });
 
   it("test float", async () => {
-    const av = new AsyncValidate({
-      a: AsyncValidate.float("value is not a float"),
+    const av = new AV({
+      a: AV.float("value is not a float"),
     });
     expect(
       await av.validate({
@@ -170,8 +178,8 @@ describe("main", () => {
   });
 
   it("test array", async () => {
-    const av = new AsyncValidate({
-      a: AsyncValidate.array("value is not a array"),
+    const av = new AV({
+      a: AV.array("value is not a array"),
     });
     expect(
       await av.validate({
@@ -187,8 +195,8 @@ describe("main", () => {
   });
 
   it("test object", async () => {
-    const av = new AsyncValidate({
-      a: AsyncValidate.object("value is not a object"),
+    const av = new AV({
+      a: AV.object("value is not a object"),
     });
     expect(
       await av.validate({
@@ -202,9 +210,9 @@ describe("main", () => {
       })
     ).toBe(false);
 
-    const av2 = new AsyncValidate(
+    const av2 = new AV(
       {
-        name: AsyncValidate.required("name is requries!"),
+        name: AV.required("name is requries!"),
         address: {
           object: "address error.",
           validators: {
@@ -240,7 +248,7 @@ describe("main", () => {
   });
 
   it("test json", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       a: { json: "value is not a json" },
     });
     expect(
@@ -263,9 +271,9 @@ describe("main", () => {
   });
 
   it("test bool", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       a: { bool: "value is not a bool" },
-      b: AsyncValidate.bool("value is not a bool"),
+      b: AV.bool("value is not a bool"),
     });
     expect(
       await av.validate({
@@ -283,9 +291,9 @@ describe("main", () => {
   });
 
   it("test regexp", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       a: { regexp: "value is not a regexp" },
-      b: AsyncValidate.regexp("value is not a regexp"),
+      b: AV.regexp("value is not a regexp"),
     });
     expect(
       await av.validate({
@@ -303,7 +311,7 @@ describe("main", () => {
   });
 
   it("test fail", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       value: {
         hex: "value is not a hex",
         minLength: [12, "error."],
@@ -330,7 +338,7 @@ describe("main", () => {
 
 describe("mixin", () => {
   beforeAll(() => {
-    AsyncValidate.mixin({
+    AV.mixin({
       enum(c: any[], msg: string) {
         return (input) => {
           if (!c.includes(input)) return { enum: msg };
@@ -340,12 +348,22 @@ describe("mixin", () => {
   });
 
   it("test mixin", async () => {
-    const av = new AsyncValidate({
+    const av = new AV({
       value: {
         enum: [["a", "b", "c"], "error."],
       },
+      arr: {
+        array: "必须是列表",
+        validators: [
+          (input: any[]) => {
+            return [1, 2].every((e) => input.includes(e))
+              ? null
+              : { every: "必须包含 [1, 2]" };
+          },
+        ],
+      },
     });
-    expect(await av.validate({ value: "a" })).toBe(true);
-    expect(await av.validate({ value: "d" })).toBe(false);
+    expect(await av.validate({ value: "a", arr: [1, 2] })).toBe(true);
+    expect(await av.validate({ value: "", arr: [3] })).toBe(false);
   });
 });

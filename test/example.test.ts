@@ -30,8 +30,7 @@ describe("example", () => {
       },
       {
         checkAll: true,
-        ignore: false,
-        fail: function (erFields) {
+        fail(erFields) {
           expect("name" in erFields).toBe(true);
           expect(erFields.name.errors.minLength).toBe("姓名最少需要6个字符");
           expect(erFields.name.errors.checkName).toBeTruthy();

@@ -6,11 +6,8 @@ import {
   ValidateHandleArg,
 } from "./interface";
 
-/**
- * 一种简便的方式设置验证器
- *
- * 详见测试
- */
+const VALIDATORS = "validators";
+
 export interface AsyncValidateOptions {
   string?: ValidateHandleArg;
   number?: ValidateHandleArg;
@@ -26,7 +23,6 @@ export interface AsyncValidateOptions {
 
   required?: ValidateHandleArg;
   validators?:
-    | AsyncValidate
     | AsyncValidateHandle
     | AsyncValidateHandle[]
     | IValidateConfig /* to AsyncValidate */;
@@ -48,11 +44,9 @@ export interface IValidateConfig {
     | AsyncValidateOptions;
 }
 
-export interface IOptions {
+export interface IOptions<T> {
   /**
-   * 如果为false, 检查到一个字段失败，直接返回失败，其余字段将不会进行检查
-   *
-   * 如果为true, 会检查完所有字段的验证器
+   * 如果为true会检查完所有字段的验证器，否则检测失败直接返回
    *
    * default: false
    */
@@ -61,17 +55,10 @@ export interface IOptions {
   /**
    * 字段验证失败时，用户处理错误的函数
    */
-  fail?: ValidateFailHandle;
-
-  /**
-   * 无视掉没有设置验证器的字段
-   *
-   * default: true
-   */
-  ignore?: boolean;
+  fail?: ValidateFailHandle<T>;
 }
 
-function isSuccess(errorFileds: ValidateFailFileds) {
+function isSuccess<T>(errorFileds: ValidateFailFileds<T>) {
   return Object.keys(errorFileds).length === 0;
 }
 
@@ -79,10 +66,8 @@ function isObject(data: any): boolean {
   return Object.prototype.toString.call(data) === "[object Object]";
 }
 
-const VALIDATORS = "validators";
-
-function isValidators(obj: any): obj is AsyncValidateOptions {
-  return obj.hasOwnProperty(VALIDATORS);
+function hasValidators(obj: any): obj is AsyncValidateOptions {
+  return obj.hasOwnProperty("validators");
 }
 
 /**
@@ -110,10 +95,9 @@ function handleValidators(
       if (AsyncValidate.hasOwnProperty(key)) {
         let arg: ValidateHandleArg = (validators as any)[key];
         if (!Array.isArray(arg)) arg = [arg];
-        const v = (AsyncValidate as any)[key](...arg);
-        vs.push(v);
+        vs.push((AsyncValidate as any)[key](...arg));
       } else {
-        throw new Error(`[[ AsyncValidate ]] not set "${key}" validate.`);
+        throw new Error(`[[ AsyncValidate ]] not "${key}" validate.`);
       }
     }
 
@@ -130,13 +114,18 @@ function handleValidators(
   return [];
 }
 
-export class AsyncValidate {
-  options: IOptions;
+export class AsyncValidate<
+  T extends IValidateConfig,
+  D = {
+    [key in keyof T]?: any;
+  }
+> {
+  options: IOptions<D>;
 
   /**
    * 设置所有验证器的错误处理
    */
-  static fail?: ValidateFailHandle;
+  static fail?: ValidateFailHandle<any>;
 
   /**
    * 提取第一个错误字段的第一个错误消息
@@ -144,25 +133,21 @@ export class AsyncValidate {
    * ```js
    * err = AsyncValidate.firstError({
    *   name: { errors: { required: 'name is required!' }, value: ''}
-   * }) 
-   * 
+   * })
+   *
    * err === 'name is required!'
    * ```
    */
-  static firstError(errorFields: ValidateFailFileds) {
+  static firstError(errorFields: ValidateFailFileds<any>) {
     if (errorFields && Object.keys(errorFields).length) {
       return Object.values(errorFields[Object.keys(errorFields)[0]].errors)[0];
     }
   }
 
-  constructor(
-    public readonly validateConfig: IValidateConfig,
-    options?: IOptions
-  ) {
+  constructor(public readonly validateConfig: T, options?: IOptions<D>) {
     this.options = Object.assign(
       {
         checkAll: false,
-        ignore: true,
       },
       options
     );
@@ -193,96 +178,90 @@ export class AsyncValidate {
       .forEach((k) => ((AsyncValidate as any)[k] = (handles as any)[k]));
   }
 
-  private async _eachValidators(
-    key: string,
+  /**
+   *
+   * @param keyValidate 验证器
+   * @param value 验证的数据
+   * @param data 所有数据
+   * @param errorCallback 验证失败时的回调
+   */
+  private async checkValue(
+    keyValidate:
+      | AsyncValidateHandle
+      | AsyncValidateHandle[]
+      | AsyncValidateOptions,
     value: any,
     data: AnyObject,
     errorCallback: (validate: AnyObject) => void
   ) {
-    if (this.validateConfig[key] !== null) {
-      const validators = handleValidators(this.validateConfig[key]!);
-      for (const h of validators) {
-        const error = await h(value, data);
-        if (error) errorCallback(error);
-      }
+    for (const h of handleValidators(keyValidate)) {
+      const error = await h(value, data);
+      if (error) errorCallback(error);
     }
   }
 
-  private _fail(errorFileds: ValidateFailFileds) {
+  private _fail(errorFileds: ValidateFailFileds<D>) {
     if (isSuccess(errorFileds)) return;
     if (this.options.fail) this.options.fail(errorFileds);
     else if (AsyncValidate.fail) AsyncValidate.fail(errorFileds);
   }
 
   /**
-   * 验证数据
-   * @param data
+   *
+   * @param data 需要验证的数据
+   * @param handleFail 接收错误回调
+   * @returns
    */
-  async validate(data: AnyObject): Promise<boolean> {
-    const errorFileds: ValidateFailFileds = {};
+  async validate(
+    data: D,
+    handleFail?: (errorFileds: ValidateFailFileds<D>) => void
+  ): Promise<boolean> {
+    const errorFileds: ValidateFailFileds<D> = {};
     let success = true;
+    data ??= {} as D;
 
-    // 遍历需要验证的数据
-    for (const [key, value] of Object.entries(data)) {
-      // 是否设置了这个字段的验证器
-      if (!this.validateConfig.hasOwnProperty(key)) {
-        if (!this.options.ignore)
-          console.warn(`[[ AsyncValidate ]] "${key}" validate is not set.`);
-        continue;
+    for (const [key, keyValidate] of Object.entries(this.validateConfig)) {
+      // 验证器设置为空，将跳过检测
+      if (!keyValidate) continue;
+
+      if ( !(key in data) ) {
+        throw new Error(`AsyncValidate Error: 没有 ${key} 数据!`)
       }
 
-      const keyValidate = this.validateConfig[key];
+      const value = (data as any)[key];
 
-      // 字段验证设置为null，将跳过验证
-      if (keyValidate === null) continue;
-
-      // 遍历这个字段的验证器
-      await this._eachValidators(key, value, data, (error) => {
-        if (!errorFileds[key]) {
-          errorFileds[key] = {
-            value,
-            errors: {},
-          };
-        }
+      await this.checkValue(keyValidate, value, data, (error) => {
+        errorFileds[key] ??= {
+          value,
+          data,
+          errors: {},
+        };
         Object.assign(errorFileds[key].errors, error);
       });
 
-      // 每个字段中定义的fail，会被通知错误
-      if (
-        errorFileds.hasOwnProperty(key) &&
-        keyValidate.hasOwnProperty("fail")
-      ) {
-        (keyValidate as any).fail(errorFileds[key]);
+      // 每个字段中定义的 fail
+      if (key in errorFileds && "fail" in keyValidate) {
+        keyValidate.fail?.(errorFileds[key]);
       }
 
-      // 每当一个字段出现错误,触发验证器的fail，然后结束验证
+      // 验证失败调用fail
       success = isSuccess(errorFileds);
-      if (!success && !this.options.checkAll) {
-        this._fail(errorFileds);
-        break;
-      }
+      if (!success && !this.options.checkAll) break;
 
-      // validators: {} to validators: new AsyncValidate({}, parentOptions)
-      if (isValidators(keyValidate) && isObject(keyValidate.validators)) {
-        keyValidate.validators = new AsyncValidate(
+      if (hasValidators(keyValidate) && isObject(keyValidate.validators)) {
+        const av = new AsyncValidate<any, any>(
           keyValidate.validators as IValidateConfig,
           this.options
         );
-      }
-
-      // object验证，使用AsyncValidate
-      if (
-        isValidators(keyValidate) &&
-        keyValidate.validators instanceof AsyncValidate
-      ) {
-        const av = keyValidate.validators;
-        if (!av.options.fail) av.options.fail = this.options.fail;
         success = await av.validate(value);
         if (!success && !this.options.checkAll) break;
       }
     } // for end
 
-    if (!success && this.options.checkAll) this._fail(errorFileds);
+    if (!success) {
+      this._fail(errorFileds);
+      handleFail?.(errorFileds);
+    }
     return success;
   }
 
@@ -308,7 +287,8 @@ export class AsyncValidate {
   }
 
   // 简单的验证手机号
-  private static PHONE_EXP = /^((13[0-9])|(14[0-9])|(15[0-9])|(16[0-9])|(17[0-9])|(18[0-9])|(19[0-9]))\d{8}$/;
+  private static PHONE_EXP =
+    /^((13[0-9])|(14[0-9])|(15[0-9])|(16[0-9])|(17[0-9])|(18[0-9])|(19[0-9]))\d{8}$/;
   static phone(msg: string): AsyncValidateHandle {
     return (input) => {
       if (typeof input === "string" && !input.match(AsyncValidate.PHONE_EXP)) {
@@ -341,7 +321,8 @@ export class AsyncValidate {
     };
   }
 
-  private static EMAIL_EXP = /^(?=.{1,254}$)(?=.{1,64}@)[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  private static EMAIL_EXP =
+    /^(?=.{1,254}$)(?=.{1,64}@)[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
   static email(msg: string): AsyncValidateHandle {
     return (input: string) => {

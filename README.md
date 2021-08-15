@@ -49,7 +49,7 @@ const av = new AsyncValidate(
 
     // You can handle all errors here
     // If this "fail" is set, "AsyncValidate.fail" will not be called
-    fail: function (erFields) {
+    fail(erFields) {
       expect("name" in erFields).toBe(true);
       expect(erFields.name.errors.minLength).toBe("姓名最少需要6个字符");
       expect(erFields.name.errors.checkName).toBeTruthy();
