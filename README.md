@@ -62,20 +62,17 @@ const av = new AsyncValidate(
 );
 
 // Verify the data, if all are successful, it will return "true", otherwise it will return "false"
-expect(
-  await av.validate({
-    name: "aja",
-    pwd: "12345678",
-    pwd2: "",
-  })
-).toBe(false);
+
+await av.validate({
+  name: "aja",
+  pwd: "12345678",
+  pwd2: "",
+}) // false
 ```
 
 
 ## Set field validator
 ```ts
-import { AsyncValidate } from "ajanuw-async-validate";
-
 // Set up a single
 new AsyncValidate({
   name: AsyncValidate.required("name is required!"),
@@ -148,8 +145,8 @@ const av = new AsyncValidate({
   },
 });
 
-expect(await av.validate({ value: "a" })).toBe(true);
-expect(await av.validate({ value: "d" })).toBe(false);
+await av.validate({ value: "a" }) // true
+await av.validate({ value: "d" }) // false
 ```
 
 
@@ -158,7 +155,7 @@ expect(await av.validate({ value: "d" })).toBe(false);
 ```ts
 type ValidateHandleArg = string | any[];
 
-interface AsyncValidateOptions {
+export interface AsyncValidateOptions {
   string?: ValidateHandleArg;
   number?: ValidateHandleArg;
   bool?: ValidateHandleArg;
@@ -169,10 +166,20 @@ interface AsyncValidateOptions {
   json?: ValidateHandleArg; // try JSON.parse()
   email?: ValidateHandleArg;
   hex?: ValidateHandleArg; // 0x0A 0Ah 0A
-  regexp?: ValidateHandleArg; // /a/, new RegExp()
+  regexp?: ValidateHandleArg; // /a/ new RegExp()
+
+  or?: ValidateHandleArg;
+  and?: ValidateHandleArg;
+
   required?: ValidateHandleArg;
-  validators?: AsyncValidate | AsyncValidateHandle | AsyncValidateHandle[];
+  validators?:
+    | AsyncValidateHandle
+    | AsyncValidateHandle[]
+    | IValidateConfig /* to AsyncValidate */;
+
+  // 监听单个字段的错误,当验证失败(invalid)时，调用
   fail?: (errors: { value: any; errors: AnyObject }) => void;
+
   [name: string]: any;
 }
 ```

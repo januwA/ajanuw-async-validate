@@ -1,6 +1,34 @@
 import { AsyncValidate as AV } from "../src";
 
 describe("main", () => {
+  it("test and", async () => {
+    const av = new AV({
+      x: {
+        required: "必填",
+        or: [
+          [AV.number(), AV.and([AV.string(), AV.hex()])],
+          "必须为数字或则字符串!",
+        ],
+      },
+    });
+
+    expect(await av.validate({ x: 123 })).toBe(true);
+    expect(await av.validate({ x: "0x01" })).toBe(true);
+    expect(await av.validate({ x: true })).toBe(false);
+  });
+
+  it("test or", async () => {
+    const av = new AV({
+      x: {
+        required: "必填",
+        or: [[AV.number(""), AV.string("")], "必须为数字或则字符串!"],
+      },
+    });
+
+    expect(await av.validate({ x: 123 })).toBe(true);
+    expect(await av.validate({ x: "123" })).toBe(true);
+    expect(await av.validate({ x: true })).toBe(false);
+  });
   it("test empty data", async () => {
     const av = new AV({
       username: AV.required("名称必填!"),

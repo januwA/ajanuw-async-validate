@@ -21,6 +21,9 @@ export interface AsyncValidateOptions {
   hex?: ValidateHandleArg; // 0x0A 0Ah 0A
   regexp?: ValidateHandleArg; // /a/ new RegExp()
 
+  or?: ValidateHandleArg;
+  and?: ValidateHandleArg;
+
   required?: ValidateHandleArg;
   validators?:
     | AsyncValidateHandle
@@ -33,15 +36,16 @@ export interface AsyncValidateOptions {
   [name: string]: any;
 }
 
+type AsyncValidateCheck =
+  | AsyncValidateHandle
+  | AsyncValidateHandle[]
+  | AsyncValidateOptions;
+
 /**
  * 验证器配置
  */
 export interface IValidateConfig {
-  [key: string]:
-    | null
-    | AsyncValidateHandle
-    | AsyncValidateHandle[]
-    | AsyncValidateOptions;
+  [key: string]: null | AsyncValidateCheck;
 }
 
 export interface IOptions<T> {
@@ -75,10 +79,7 @@ function hasValidators(obj: any): obj is AsyncValidateOptions {
  * @param validators
  */
 function handleValidators(
-  validators?:
-    | AsyncValidateHandle
-    | AsyncValidateHandle[]
-    | AsyncValidateOptions
+  validators?: AsyncValidateCheck
 ): AsyncValidateHandle[] {
   if (!validators) return [];
 
@@ -224,8 +225,8 @@ export class AsyncValidate<
       // 验证器设置为空，将跳过检测
       if (!keyValidate) continue;
 
-      if ( !(key in data) ) {
-        throw new Error(`AsyncValidate Error: 没有 ${key} 数据!`)
+      if (!(key in data)) {
+        throw new Error(`AsyncValidate Error: 没有 ${key} 数据!`);
       }
 
       const value = (data as any)[key];
@@ -265,22 +266,56 @@ export class AsyncValidate<
     return success;
   }
 
+  /**
+   *
+   * @param validators 测试表达式
+   * @param msg 错误消息
+   * @returns
+   */
+  static and(validators: AsyncValidateHandle[], msg?: string) {
+    return async (input: any, data: any) => {
+      for await (const v of validators) {
+        if (await v(input, data)) return { and: msg };
+      }
+
+      return null;
+    };
+  }
+
+  /**
+   *
+   * @param validators 测试表达式
+   * @param msg 错误消息
+   * @returns
+   */
+  static or(validators: AsyncValidateHandle[], msg?: string) {
+    return async (input: any, data: any) => {
+      let r: any;
+      for await (const v of validators) {
+        r = await v(input, data);
+        if (!r) return null;
+      }
+
+      return { or: msg };
+    };
+  }
+
   // 必填
-  static required(msg: string): AsyncValidateHandle {
+  static required(msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!input) return { required: msg };
     };
   }
 
   // 最小长度
-  static minLength(len: number, msg: string): AsyncValidateHandle {
+  static minLength(len: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (input.length < parseFloat(len as any)) return { minLength: msg };
     };
   }
 
   // 最大长度
-  static maxLength(len: number, msg: string): AsyncValidateHandle {
+  static maxLength(len: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (input.length > parseFloat(len as any)) return { maxLength: msg };
     };
@@ -289,7 +324,7 @@ export class AsyncValidate<
   // 简单的验证手机号
   private static PHONE_EXP =
     /^((13[0-9])|(14[0-9])|(15[0-9])|(16[0-9])|(17[0-9])|(18[0-9])|(19[0-9]))\d{8}$/;
-  static phone(msg: string): AsyncValidateHandle {
+  static phone(msg?: string): AsyncValidateHandle {
     return (input) => {
       if (typeof input === "string" && !input.match(AsyncValidate.PHONE_EXP)) {
         return { phone: msg };
@@ -298,14 +333,14 @@ export class AsyncValidate<
   }
 
   // 简单的判断相等
-  static eql(data: any, msg: string): AsyncValidateHandle {
+  static eql(data: any, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (input !== data) return { eql: msg };
     };
   }
 
   // 简单的判断相等
-  static equal(data: any, msg: string): AsyncValidateHandle {
+  static equal(data: any, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (input != data) return { equal: msg };
     };
@@ -315,7 +350,7 @@ export class AsyncValidate<
    * 必须为bool
    * @param msg
    */
-  static bool(msg: string): AsyncValidateHandle {
+  static bool(msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!(input === true || input === false)) return { bool: msg };
     };
@@ -324,25 +359,25 @@ export class AsyncValidate<
   private static EMAIL_EXP =
     /^(?=.{1,254}$)(?=.{1,64}@)[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 
-  static email(msg: string): AsyncValidateHandle {
+  static email(msg?: string): AsyncValidateHandle {
     return (input: string) => {
       if (!input.match(AsyncValidate.EMAIL_EXP)) return { email: msg };
     };
   }
 
-  static max(max: number, msg: string): AsyncValidateHandle {
+  static max(max: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!isNaN(input) && input > parseFloat(max as any)) return { max: msg };
     };
   }
 
-  static min(min: number, msg: string): AsyncValidateHandle {
+  static min(min: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!isNaN(input) && input < parseFloat(min as any)) return { min: msg };
     };
   }
 
-  static hex(msg: string): AsyncValidateHandle {
+  static hex(msg?: string): AsyncValidateHandle {
     return (input: string) => {
       input = input.replace(/^0x/i, "");
       input = input.replace(/h$/i, "");
@@ -350,7 +385,7 @@ export class AsyncValidate<
     };
   }
 
-  static number(msg: string): AsyncValidateHandle {
+  static number(msg?: string): AsyncValidateHandle {
     return (input: number) => {
       // 必须是有穷数的数字
       if (!Number.isFinite(input) || typeof input !== "number")
@@ -358,34 +393,34 @@ export class AsyncValidate<
     };
   }
 
-  static int(msg: string): AsyncValidateHandle {
+  static int(msg?: string): AsyncValidateHandle {
     return (input: number, data) => {
       if (this.number("")(input, data) || !Number.isSafeInteger(input))
         return { int: msg };
     };
   }
 
-  static float(msg: string): AsyncValidateHandle {
+  static float(msg?: string): AsyncValidateHandle {
     return (input: number, data) => {
       if (this.number("")(input, data) || Number.isInteger(input))
         return { float: msg };
     };
   }
 
-  static array(msg: string): AsyncValidateHandle {
+  static array(msg?: string): AsyncValidateHandle {
     return (input: number) => {
       if (!Array.isArray(input)) return { array: msg };
     };
   }
 
-  static object(msg: string): AsyncValidateHandle {
+  static object(msg?: string): AsyncValidateHandle {
     return (input) => {
       if (Object.prototype.toString.call(input) !== "[object Object]")
         return { object: msg };
     };
   }
 
-  static json(msg: string): AsyncValidateHandle {
+  static json(msg?: string): AsyncValidateHandle {
     return (input) => {
       try {
         JSON.parse(input);
@@ -395,9 +430,16 @@ export class AsyncValidate<
     };
   }
 
-  static regexp(msg: string): AsyncValidateHandle {
+  static regexp(msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!(input instanceof RegExp)) return { regexp: msg };
+    };
+  }
+
+  static string(msg?: string): AsyncValidateHandle {
+    return (input) => {
+      if (typeof input === "string") return null;
+      return { string: msg };
     };
   }
 }
