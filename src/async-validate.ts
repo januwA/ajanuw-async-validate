@@ -202,13 +202,15 @@ export class AsyncValidate<
   }
 
   private _fail(errorFileds: ValidateFailFileds<D>) {
-    if (isSuccess(errorFileds)) return;
+    if (isSuccess(errorFileds)) return; 
+
+    // 如果验证器有错误处理，则不调用全局错误处理
     if (this.options.fail) this.options.fail(errorFileds);
     else if (AsyncValidate.fail) AsyncValidate.fail(errorFileds);
   }
 
   /**
-   *
+   * 验证数据
    * @param data 需要验证的数据
    * @param handleFail 接收错误回调
    * @returns
@@ -265,6 +267,9 @@ export class AsyncValidate<
     }
     return success;
   }
+
+
+  //======================👇静态验证函数========================//
 
   /**
    *

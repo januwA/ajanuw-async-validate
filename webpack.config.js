@@ -9,7 +9,7 @@ module.exports = {
     filename: "ajanuw-async-validate.js",
     path: path.resolve(__dirname, "dist", "umd"),
     library: {
-      name: "ajanuw-async-validate",
+      name: "AjanuwAsyncValidate",
       type: "umd",
     },
     globalObject: "this",

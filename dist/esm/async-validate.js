@@ -1,12 +1,12 @@
+const VALIDATORS = "validators";
 function isSuccess(errorFileds) {
     return Object.keys(errorFileds).length === 0;
 }
 function isObject(data) {
     return Object.prototype.toString.call(data) === "[object Object]";
 }
-const VALIDATORS = "validators";
-function isValidators(obj) {
-    return obj.hasOwnProperty(VALIDATORS);
+function hasValidators(obj) {
+    return obj.hasOwnProperty("validators");
 }
 function handleValidators(validators) {
     if (!validators)
@@ -24,11 +24,10 @@ function handleValidators(validators) {
                 let arg = validators[key];
                 if (!Array.isArray(arg))
                     arg = [arg];
-                const v = AsyncValidate[key](...arg);
-                vs.push(v);
+                vs.push(AsyncValidate[key](...arg));
             }
             else {
-                throw new Error(`[[ AsyncValidate ]] not set "${key}" validate.`);
+                throw new Error(`[[ AsyncValidate ]] not "${key}" validate.`);
             }
         }
         if (!(validators.validators instanceof AsyncValidate) &&
@@ -44,7 +43,6 @@ export class AsyncValidate {
         this.validateConfig = validateConfig;
         this.options = Object.assign({
             checkAll: false,
-            ignore: true,
         }, options);
     }
     static firstError(errorFields) {
@@ -60,14 +58,11 @@ export class AsyncValidate {
         })
             .forEach((k) => (AsyncValidate[k] = handles[k]));
     }
-    async _eachValidators(key, value, data, errorCallback) {
-        if (this.validateConfig[key] !== null) {
-            const validators = handleValidators(this.validateConfig[key]);
-            for (const h of validators) {
-                const error = await h(value, data);
-                if (error)
-                    errorCallback(error);
-            }
+    async checkValue(keyValidate, value, data, errorCallback) {
+        for (const h of handleValidators(keyValidate)) {
+            const error = await h(value, data);
+            if (error)
+                errorCallback(error);
         }
     }
     _fail(errorFileds) {
@@ -78,52 +73,63 @@ export class AsyncValidate {
         else if (AsyncValidate.fail)
             AsyncValidate.fail(errorFileds);
     }
-    async validate(data) {
+    async validate(data, handleFail) {
         const errorFileds = {};
         let success = true;
-        for (const [key, value] of Object.entries(data)) {
-            if (!this.validateConfig.hasOwnProperty(key)) {
-                if (!this.options.ignore)
-                    console.warn(`[[ AsyncValidate ]] "${key}" validate is not set.`);
+        data ?? (data = {});
+        for (const [key, keyValidate] of Object.entries(this.validateConfig)) {
+            if (!keyValidate)
                 continue;
+            if (!(key in data)) {
+                throw new Error(`AsyncValidate Error: 没有 ${key} 数据!`);
             }
-            const keyValidate = this.validateConfig[key];
-            if (keyValidate === null)
-                continue;
-            await this._eachValidators(key, value, data, (error) => {
-                if (!errorFileds[key]) {
-                    errorFileds[key] = {
-                        value,
-                        errors: {},
-                    };
-                }
+            const value = data[key];
+            await this.checkValue(keyValidate, value, data, (error) => {
+                errorFileds[key] ?? (errorFileds[key] = {
+                    value,
+                    data,
+                    errors: {},
+                });
                 Object.assign(errorFileds[key].errors, error);
             });
-            if (errorFileds.hasOwnProperty(key) &&
-                keyValidate.hasOwnProperty("fail")) {
-                keyValidate.fail(errorFileds[key]);
+            if (key in errorFileds && "fail" in keyValidate) {
+                keyValidate.fail?.(errorFileds[key]);
             }
             success = isSuccess(errorFileds);
-            if (!success && !this.options.checkAll) {
-                this._fail(errorFileds);
+            if (!success && !this.options.checkAll)
                 break;
-            }
-            if (isValidators(keyValidate) && isObject(keyValidate.validators)) {
-                keyValidate.validators = new AsyncValidate(keyValidate.validators, this.options);
-            }
-            if (isValidators(keyValidate) &&
-                keyValidate.validators instanceof AsyncValidate) {
-                const av = keyValidate.validators;
-                if (!av.options.fail)
-                    av.options.fail = this.options.fail;
+            if (hasValidators(keyValidate) && isObject(keyValidate.validators)) {
+                const av = new AsyncValidate(keyValidate.validators, this.options);
                 success = await av.validate(value);
                 if (!success && !this.options.checkAll)
                     break;
             }
         }
-        if (!success && this.options.checkAll)
+        if (!success) {
             this._fail(errorFileds);
+            handleFail?.(errorFileds);
+        }
         return success;
+    }
+    static and(validators, msg) {
+        return async (input, data) => {
+            for await (const v of validators) {
+                if (await v(input, data))
+                    return { and: msg };
+            }
+            return null;
+        };
+    }
+    static or(validators, msg) {
+        return async (input, data) => {
+            let r;
+            for await (const v of validators) {
+                r = await v(input, data);
+                if (!r)
+                    return null;
+            }
+            return { or: msg };
+        };
     }
     static required(msg) {
         return (input) => {
@@ -238,6 +244,13 @@ export class AsyncValidate {
         return (input) => {
             if (!(input instanceof RegExp))
                 return { regexp: msg };
+        };
+    }
+    static string(msg) {
+        return (input) => {
+            if (typeof input === "string")
+                return null;
+            return { string: msg };
         };
     }
 }

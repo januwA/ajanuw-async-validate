@@ -200,6 +200,44 @@ AsyncValidate.fail = (erFields) => {
 }
 ```
 
+## Use on the browser
+```html
+<script src="ajanuw-async-validate.js"></script>
+<script>
+  const { AsyncValidate } = window.AjanuwAsyncValidate;
+
+  const av = new AsyncValidate(
+    {
+      username: {
+        required: "请填写用户名!",
+        fail(er) {
+          // 字段验证失败结果:  ['请填写用户名!']
+          console.log("字段验证失败结果: ", Object.values(er.errors));
+        },
+      },
+      password: {
+        required: "请填写密码!",
+      },
+    },
+    {
+      fail(er) {
+        // 表单验证失败结果:  请填写用户名!
+        console.log("表单验证失败结果: ", AsyncValidate.firstError(er));
+      },
+    }
+  );
+
+  (async () => {
+    const data = {
+      username: "",
+      password: "",
+    };
+    const valid = await av.validate(data);
+    console.log("valid: ", valid); // false
+  })();
+</script>
+```
+
 More features, [please see the test](https://github.com/januwA/ajanuw-async-validate/blob/main/test/test.test.ts)
 
 ## build
