@@ -21,7 +21,7 @@ describe("main", () => {
     const av = new AV({
       x: {
         required: "必填",
-        or: [[AV.number(""), AV.string("")], "必须为数字或则字符串!"],
+        or: [[AV.number(), AV.string()], "必须为数字或则字符串!"],
       },
     });
 

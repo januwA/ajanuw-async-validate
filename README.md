@@ -238,6 +238,38 @@ AsyncValidate.fail = (erFields) => {
 </script>
 ```
 
+
+## And
+```ts
+const av = new AV({
+  x: {
+    required: "必填",
+    or: [
+      [AV.number(), AV.and([AV.string(), AV.hex()])],
+      "必须为数字或则字符串!",
+    ],
+  },
+});
+
+expect(await av.validate({ x: 123 }))   .toBe(true);
+expect(await av.validate({ x: "0x01" })).toBe(true);
+expect(await av.validate({ x: true }))  .toBe(false);
+```
+
+## Or
+```ts
+const av = new AV({
+  x: {
+    required: "必填",
+    or: [[AV.number(), AV.string()], "必须为数字或则字符串!"],
+  },
+});
+
+expect(await av.validate({ x: 123 })).toBe(true);
+expect(await av.validate({ x: "123" })).toBe(true);
+expect(await av.validate({ x: true })).toBe(false);
+```
+
 More features, [please see the test](https://github.com/januwA/ajanuw-async-validate/blob/main/test/test.test.ts)
 
 ## build
