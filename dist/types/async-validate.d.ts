@@ -50,6 +50,7 @@ export declare class AsyncValidate<T extends IValidateConfig, D = {
         or: string | undefined;
     } | null>;
     static required(msg?: string): AsyncValidateHandle;
+    static len(size: number, msg?: string): AsyncValidateHandle;
     static minLength(len: number, msg?: string): AsyncValidateHandle;
     static maxLength(len: number, msg?: string): AsyncValidateHandle;
     private static PHONE_EXP;

@@ -137,15 +137,23 @@ export class AsyncValidate {
                 return { required: msg };
         };
     }
+    static len(size, msg) {
+        return (input) => {
+            if (!input.hasOwnProperty("length") || input.length !== size)
+                return { len: msg };
+        };
+    }
     static minLength(len, msg) {
         return (input) => {
-            if (input.length < parseFloat(len))
+            if (!input.hasOwnProperty("length") ||
+                input.length < parseFloat(len))
                 return { minLength: msg };
         };
     }
     static maxLength(len, msg) {
         return (input) => {
-            if (input.length > parseFloat(len))
+            if (!input.hasOwnProperty("length") ||
+                input.length > parseFloat(len))
                 return { maxLength: msg };
         };
     }
