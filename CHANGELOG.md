@@ -1,3 +1,9 @@
+## 0.9.0 2022-8-1
+
+- ✨ add `len`
+- ✅✔️ test `len` and `minLength` and `maxLength`
+
+
 ## 0.8.2 2021-10-27
 
 - 📦 update packages

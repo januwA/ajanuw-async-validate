@@ -202,7 +202,7 @@ export class AsyncValidate<
   }
 
   private _fail(errorFileds: ValidateFailFileds<D>) {
-    if (isSuccess(errorFileds)) return; 
+    if (isSuccess(errorFileds)) return;
 
     // 如果验证器有错误处理，则不调用全局错误处理
     if (this.options.fail) this.options.fail(errorFileds);
@@ -268,7 +268,6 @@ export class AsyncValidate<
     return success;
   }
 
-
   //======================👇静态验证函数========================//
 
   /**
@@ -312,17 +311,33 @@ export class AsyncValidate<
     };
   }
 
+  // length 长度判断
+  static len(size: number, msg?: string): AsyncValidateHandle {
+    return (input) => {
+      if (!input.hasOwnProperty("length") || input.length !== size)
+        return { len: msg };
+    };
+  }
+
   // 最小长度
   static minLength(len: number, msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (input.length < parseFloat(len as any)) return { minLength: msg };
+      if (
+        !input.hasOwnProperty("length") ||
+        input.length < parseFloat(len as any)
+      )
+        return { minLength: msg };
     };
   }
 
   // 最大长度
   static maxLength(len: number, msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (input.length > parseFloat(len as any)) return { maxLength: msg };
+      if (
+        !input.hasOwnProperty("length") ||
+        input.length > parseFloat(len as any)
+      )
+        return { maxLength: msg };
     };
   }
 

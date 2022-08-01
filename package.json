@@ -1,6 +1,6 @@
 {
   "name": "ajanuw-async-validate",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "Asynchronous form validator",
   "private": false,
   "main": "./dist/umd/ajanuw-async-validate.js",

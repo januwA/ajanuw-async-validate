@@ -395,3 +395,52 @@ describe("mixin", () => {
     expect(await av.validate({ value: "", arr: [3] })).toBe(false);
   });
 });
+
+describe("length", () => {
+  it("test len", async () => {
+    const av = new AV({
+      value: {
+        len: [3, "error."],
+      },
+    });
+    expect(await av.validate({ value: "123" })).toBe(true);
+    expect(await av.validate({ value: "12" })).toBe(false);
+    expect(await av.validate({ value: "1234" })).toBe(false);
+    expect(await av.validate({ value: 222 })).toBe(false);
+
+    expect(await av.validate({ value: [] })).toBe(false);
+    expect(await av.validate({ value: [1, 2, 3] })).toBe(true);
+  });
+
+  it("test minLength", async () => {
+    const av = new AV({
+      value: {
+        minLength: [3, "error."],
+      },
+    });
+    expect(await av.validate({ value: "123" })).toBe(true);
+    expect(await av.validate({ value: "1234" })).toBe(true);
+    expect(await av.validate({ value: "12" })).toBe(false);
+    expect(await av.validate({ value: 222 })).toBe(false);
+
+    expect(await av.validate({ value: [] })).toBe(false);
+    expect(await av.validate({ value: [1, 2, 3] })).toBe(true);
+    expect(await av.validate({ value: [1, 2, 3, 4] })).toBe(true);
+  });
+
+  it("test maxLength", async () => {
+    const av = new AV({
+      value: {
+        maxLength: [3, "error."],
+      },
+    });
+    expect(await av.validate({ value: "123" })).toBe(true);
+    expect(await av.validate({ value: "12" })).toBe(true);
+    expect(await av.validate({ value: "1234" })).toBe(false);
+    expect(await av.validate({ value: 222 })).toBe(false);
+
+    expect(await av.validate({ value: [] })).toBe(true);
+    expect(await av.validate({ value: [1, 2, 3] })).toBe(true);
+    expect(await av.validate({ value: [1, 2, 3, 4] })).toBe(false);
+  });
+});
