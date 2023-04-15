@@ -8,6 +8,9 @@ import {
 
 const VALIDATORS = "validators";
 
+// 忽略字段检测
+const KIgnore = Symbol("ignore");
+
 export interface AsyncValidateOptions {
   string?: ValidateHandleArg;
   number?: ValidateHandleArg;
@@ -30,10 +33,7 @@ export interface AsyncValidateOptions {
     | AsyncValidateHandle[]
     | IValidateConfig /* to AsyncValidate */;
 
-  // 监听单个字段的错误,当验证失败(invalid)时，调用
-  fail?: (errors: { value: any; errors: AnyObject }) => void;
-
-  [name: string]: any;
+  [name: string]: any; // enum
 }
 
 type AsyncValidateCheck =
@@ -45,13 +45,12 @@ type AsyncValidateCheck =
  * 验证器配置
  */
 export interface IValidateConfig {
-  [key: string]: null | AsyncValidateCheck;
+  [key: string]: Symbol | AsyncValidateCheck;
 }
 
-export interface IOptions<T> {
+export interface IOptions<D> {
   /**
-   * 如果为true会检查完所有字段的验证器，否则检测失败直接返回
-   *
+   * 如果为true会检查完所有字段的验证器，接返回否则检测失败直接返回
    * default: false
    */
   checkAll?: boolean;
@@ -59,7 +58,7 @@ export interface IOptions<T> {
   /**
    * 字段验证失败时，用户处理错误的函数
    */
-  fail?: ValidateFailHandle<T>;
+  fail?: ValidateFailHandle<D>;
 }
 
 function isSuccess<T>(errorFileds: ValidateFailFileds<T>) {
@@ -75,7 +74,7 @@ function hasValidators(obj: any): obj is AsyncValidateOptions {
 }
 
 /**
- * 将不同的validators，处理为 AsyncValidateHandle[]
+ * 将不同的validators,处理为 AsyncValidateHandle[]
  * @param validators
  */
 function handleValidators(
@@ -92,13 +91,13 @@ function handleValidators(
 
     // 映射AsyncValidate上的静态方法，如果不存在直接抛错，应为可能造成错误的结果
     for (const key in validators) {
-      if ([VALIDATORS, "fail"].includes(key)) continue;
+      if ([VALIDATORS].includes(key)) continue;
       if (AsyncValidate.hasOwnProperty(key)) {
         let arg: ValidateHandleArg = (validators as any)[key];
         if (!Array.isArray(arg)) arg = [arg];
         vs.push((AsyncValidate as any)[key](...arg));
       } else {
-        throw new Error(`[[ AsyncValidate ]] not "${key}" validate.`);
+        throw new Error(`AsyncValidate not "${key}" validate.`);
       }
     }
 
@@ -115,13 +114,21 @@ function handleValidators(
   return [];
 }
 
+abstract class AbstractAsyncValidate<D> {
+  name = "";
+  setName(name: string): void {
+    this.name = name;
+  }
+  abstract validate(data: D, opt?: IOptions<D>): Promise<boolean>;
+}
+
 export class AsyncValidate<
   T extends IValidateConfig,
-  D = {
+  D extends {
     [key in keyof T]?: any;
   }
-> {
-  options: IOptions<D>;
+> extends AbstractAsyncValidate<D> {
+  static IGNORE = KIgnore;
 
   /**
    * 设置所有验证器的错误处理
@@ -145,13 +152,8 @@ export class AsyncValidate<
     }
   }
 
-  constructor(public readonly validateConfig: T, options?: IOptions<D>) {
-    this.options = Object.assign(
-      {
-        checkAll: false,
-      },
-      options
-    );
+  constructor(public readonly validateConfig: T) {
+    super();
   }
 
   /**
@@ -201,12 +203,9 @@ export class AsyncValidate<
     }
   }
 
-  private _fail(errorFileds: ValidateFailFileds<D>) {
+  private callGlobalFailHandle(errorFileds: ValidateFailFileds<D>) {
     if (isSuccess(errorFileds)) return;
-
-    // 如果验证器有错误处理，则不调用全局错误处理
-    if (this.options.fail) this.options.fail(errorFileds);
-    else if (AsyncValidate.fail) AsyncValidate.fail(errorFileds);
+    if (AsyncValidate.fail) AsyncValidate.fail(errorFileds);
   }
 
   /**
@@ -215,25 +214,22 @@ export class AsyncValidate<
    * @param handleFail 接收错误回调
    * @returns
    */
-  async validate(
-    data: D,
-    handleFail?: (errorFileds: ValidateFailFileds<D>) => void
-  ): Promise<boolean> {
+  async validate(data: D, opt?: IOptions<D>): Promise<boolean> {
+    data ??= {} as D;
+    opt ??= Object.assign({ checkAll: false }, opt);
     const errorFileds: ValidateFailFileds<D> = {};
     let success = true;
-    data ??= {} as D;
 
-    for (const [key, keyValidate] of Object.entries(this.validateConfig)) {
-      // 验证器设置为空，将跳过检测
-      if (!keyValidate) continue;
+    for (const [key, valueValidate] of Object.entries(this.validateConfig)) {
+      if (valueValidate === KIgnore) continue;
 
       if (!(key in data)) {
-        throw new Error(`AsyncValidate Error: 没有 ${key} 数据!`);
+        throw new Error(`AsyncValidate Error: "${key}" not data`);
       }
 
-      const value = (data as any)[key];
+      const value = data[key];
 
-      await this.checkValue(keyValidate, value, data, (error) => {
+      await this.checkValue(valueValidate, value, data, (error) => {
         errorFileds[key] ??= {
           value,
           data,
@@ -242,28 +238,35 @@ export class AsyncValidate<
         Object.assign(errorFileds[key].errors, error);
       });
 
-      // 每个字段中定义的 fail
-      if (key in errorFileds && "fail" in keyValidate) {
-        keyValidate.fail?.(errorFileds[key]);
-      }
-
       // 验证失败调用fail
       success = isSuccess(errorFileds);
-      if (!success && !this.options.checkAll) break;
+      if (!success && !opt.checkAll) break;
 
-      if (hasValidators(keyValidate) && isObject(keyValidate.validators)) {
+      if (hasValidators(valueValidate) && isObject(valueValidate.validators)) {
         const av = new AsyncValidate<any, any>(
-          keyValidate.validators as IValidateConfig,
-          this.options
+          valueValidate.validators as IValidateConfig
         );
-        success = await av.validate(value);
-        if (!success && !this.options.checkAll) break;
+
+        const opt2: IOptions<any> = { checkAll: opt.checkAll };
+        if (opt.fail) {
+          opt2.fail = (erFields) => {
+            errorFileds[key] ??= {
+              value,
+              data,
+              errors: {},
+            };
+            errorFileds[key].children = erFields;
+          };
+        }
+
+        success = await av.validate(value, opt2);
+        if (!success && !opt.checkAll) break;
       }
     } // for end
 
     if (!success) {
-      this._fail(errorFileds);
-      handleFail?.(errorFileds);
+      this.callGlobalFailHandle(errorFileds);
+      opt.fail?.(errorFileds);
     }
     return success;
   }

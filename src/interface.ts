@@ -16,20 +16,21 @@ export interface AsyncValidateHandle {
  */
 export type ValidateHandleArg = string | any[];
 
-export interface ValidateFailFileds<T> {
+export interface ValidateFailFileds<D> {
   /**
    * name 验证失败的字段
    */
   [name: string]: {
     value: any;
-    data: T;
+    data: D;
     errors: AnyObject;
+    children?: ValidateFailFileds<any>;
   };
 }
 
 /**
  * 处理error的函数
  */
-export interface ValidateFailHandle<T> {
-  (errorFields: ValidateFailFileds<T>): void;
+export interface ValidateFailHandle<D> {
+  (errorFields: ValidateFailFileds<D>): void;
 }

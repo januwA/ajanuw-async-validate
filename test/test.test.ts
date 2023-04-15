@@ -29,21 +29,27 @@ describe("main", () => {
     expect(await av.validate({ x: "123" })).toBe(true);
     expect(await av.validate({ x: true })).toBe(false);
   });
+
   it("test empty data", async () => {
     const av = new AV({
       username: AV.required("名称必填!"),
     });
 
     expect(
-      await av.validate({ username: "" }, (e) => {
-        expect(e.username.errors.required).toBe("名称必填!");
-      })
+      await av.validate(
+        { username: "" },
+        {
+          fail: (e) => {
+            expect(e.username.errors.required).toBe("名称必填!");
+          },
+        }
+      )
     ).toBe(false);
   });
 
   it("test skip validate", async () => {
     const av = new AV({
-      name: null,
+      name: AV.IGNORE,
       age: [],
     });
 
@@ -56,19 +62,22 @@ describe("main", () => {
   });
 
   it("test firstError", async () => {
-    const av = new AV(
-      {
-        name: {
-          required: "name is required!",
-        },
+    const av = new AV({
+      name: {
+        required: "name is required!",
       },
-      {
-        fail(er) {
-          expect(AV.firstError(er)).toBe("name is required!");
-        },
-      }
-    );
-    expect(await av.validate({ name: undefined })).toBe(false);
+    });
+
+    expect(
+      await av.validate(
+        { name: undefined },
+        {
+          fail(er) {
+            expect(AV.firstError(er)).toBe("name is required!");
+          },
+        }
+      )
+    ).toBe(false);
   });
 
   it("test max", async () => {
@@ -238,40 +247,40 @@ describe("main", () => {
       })
     ).toBe(false);
 
-    const av2 = new AV(
-      {
-        name: AV.required("name is requries!"),
-        address: {
-          object: "address error.",
-          validators: {
-            street: {
-              required: "require street.",
-            },
-            zip: {
-              required: "require street.",
-            },
+    const av2 = new AV({
+      name: AV.required("name is requries!"),
+      address: {
+        object: "address error.",
+        validators: {
+          street: {
+            required: "require street.",
+          },
+          zip: {
+            required: "require street.",
           },
         },
       },
-      {
-        checkAll: true,
-        fail: function (erFields) {
-          expect(erFields.street).toBeTruthy();
-          expect(erFields.street.errors.required).toBeTruthy();
-
-          expect(erFields.zip).toBeTruthy();
-          expect(erFields.zip.errors.required).toBeTruthy();
-        },
-      }
-    );
+    });
     expect(
-      await av2.validate({
-        name: "ajanuw",
-        address: {
-          street: "",
-          zip: "",
+      await av2.validate(
+        {
+          name: "ajanuw",
+          address: {
+            street: "",
+            zip: "",
+          },
         },
-      })
+        {
+          checkAll: true,
+          fail: (erFields) => {
+            expect(erFields.address.children!.street).toBeTruthy();
+            expect(erFields.address.children!.street.errors.required).toBeTruthy();
+
+            expect(erFields.address.children!.zip).toBeTruthy();
+            expect(erFields.address.children!.zip.errors.required).toBeTruthy();
+          },
+        }
+      )
     ).toBe(false);
   });
 
@@ -343,24 +352,25 @@ describe("main", () => {
       value: {
         hex: "value is not a hex",
         minLength: [12, "error."],
-        fail(er) {
-          expect(er.errors.hex).toBeTruthy();
-          expect(er.errors.minLength).toBeTruthy();
-        },
       },
       name: {
         required: "name is required",
-        fail(er) {
-          console.log(er);
-        },
       },
     });
-    expect(
-      await av.validate({
+
+    const result = await av.validate(
+      {
         value: "0xhello",
         name: "ajanuw",
-      })
-    ).toBe(false);
+      },
+      {
+        fail(er) {
+          expect(er.value.errors.hex).toBeTruthy();
+          expect(er.value.errors.minLength).toBeTruthy();
+        },
+      }
+    );
+    expect(result).toBe(false);
   });
 });
 
