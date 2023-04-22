@@ -1,4 +1,4 @@
-import { AsyncValidate } from "../src";
+import { AsyncValidate, Validators } from "../src";
 
 describe("example", () => {
   it("test validate", async () => {
@@ -6,7 +6,7 @@ describe("example", () => {
       name: {
         required: "名称必填",
         validators: [
-          AsyncValidate.minLength(6, "姓名最少需要6个字符"),
+          Validators.minLength(6, "姓名最少需要6个字符"),
 
           (name: string) =>
             Promise.resolve(
