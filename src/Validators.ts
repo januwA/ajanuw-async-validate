@@ -1,58 +1,23 @@
-import { AsyncValidateHandle, AsyncValidateHandles } from "./interface";
+import isEmail from "validator/lib/isEmail";
+import isIP from "validator/lib/isIP";
+import isJSON from "validator/lib/isJSON";
+import isURL from "validator/lib/isURL";
+import isMobilePhone, { MobilePhoneLocale } from "validator/lib/isMobilePhone";
 
-/**
- * 验证手机号正则表达式
- */
-const KPhoneRegExp =
-  /^((13[0-9])|(14[0-9])|(15[0-9])|(16[0-9])|(17[0-9])|(18[0-9])|(19[0-9]))\d{8}$/;
-
-/**
- * 验证邮箱账号正则表达式
- */
-const KEmailRegExp =
-  /^(?=.{1,254}$)(?=.{1,64}@)[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+import { AsyncValidateHandle } from "./interface";
+import { makeValidatorError } from "./utils";
 
 export class Validators {
-  /**
-   * 忽略字段检测
-   */
-  static Ignore = Symbol("ignore");
-
-  /**
-   * 定义全局的验证器
-   * 
-   * ## Example
-   * 
-   * ```ts
-   AsyncValidate.mixin({
-      num(c: any[], msg: string) {
-        return (input) => {
-          if (!c.includes(input)) return msg;
-        };
-      },
-    })
-   * ```
-   */
-  static mixin(handles: {
-    [name: string]: (...args: any[]) => AsyncValidateHandle;
-  }) {
-    Object.keys(handles)
-      .filter((k) => {
-        if (!Validators.hasOwnProperty(k)) return k;
-      })
-      .forEach((k) => ((Validators as any)[k] = handles[k]));
-  }
-
   /**
    *
    * @param validators 测试表达式
    * @param msg 错误消息
    * @returns
    */
-  static and(validators: AsyncValidateHandles, msg?: string) {
+  static and(validators: AsyncValidateHandle[], msg?: string) {
     return async (input: any, data: any) => {
       for await (const v of validators) {
-        if (await v(input, data)) return { and: msg };
+        if (await v(input, data)) return makeValidatorError("and", msg);
       }
 
       return null;
@@ -65,7 +30,7 @@ export class Validators {
    * @param msg 错误消息
    * @returns
    */
-  static or(validators: AsyncValidateHandles, msg?: string) {
+  static or(validators: AsyncValidateHandle[], msg?: string) {
     return async (input: any, data: any) => {
       let r: any;
       for await (const v of validators) {
@@ -73,14 +38,14 @@ export class Validators {
         if (!r) return null;
       }
 
-      return { or: msg };
+      return makeValidatorError("or", msg);
     };
   }
 
   // 必填
   static required(msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (!input) return { required: msg };
+      if (!input) return makeValidatorError("required", msg);
     };
   }
 
@@ -88,7 +53,7 @@ export class Validators {
   static len(size: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!input.hasOwnProperty("length") || input.length !== size)
-        return { len: msg };
+        return makeValidatorError("len", msg);
     };
   }
 
@@ -96,7 +61,7 @@ export class Validators {
   static minLength(len: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!input.hasOwnProperty("length") || input.length < len)
-        return { minLength: msg };
+        return makeValidatorError("minLength", msg);
     };
   }
 
@@ -104,125 +69,118 @@ export class Validators {
   static maxLength(len: number, msg?: string): AsyncValidateHandle {
     return (input) => {
       if (!input.hasOwnProperty("length") || input.length > len)
-        return { maxLength: msg };
+        return makeValidatorError("maxLength", msg);
     };
   }
 
   // 简单的验证手机号
-  static phone(msg?: string): AsyncValidateHandle {
+  static phone(
+    msg?: string,
+    locale: MobilePhoneLocale = "zh-CN"
+  ): AsyncValidateHandle {
     return (input) => {
-      if (typeof input === "string" && !input.match(KPhoneRegExp)) {
-        return { phone: msg };
-      }
+      if (!isMobilePhone(input, locale))
+        return makeValidatorError("phone", msg);
     };
   }
 
-  // 简单的判断相等
-  static eql(data: any, msg?: string): AsyncValidateHandle {
-    return (input) => {
-      if (input !== data) return { eql: msg };
-    };
-  }
-
-  // 简单的判断相等
-  static equal(data: any, msg?: string): AsyncValidateHandle {
-    return (input) => {
-      if (input != data) return { equal: msg };
-    };
-  }
-
-  /**
-   * 必须为bool
-   * @param msg
-   */
   static bool(msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (!(input === true || input === false)) return { bool: msg };
+      if (!(input === true || input === false))
+        return makeValidatorError("bool", msg);
+    };
+  }
+
+  static ipv4(msg?: string): AsyncValidateHandle {
+    return (input) => {
+      if (!isIP(input, 4)) return makeValidatorError("ipv4", msg);
+    };
+  }
+
+  static ipv6(msg?: string): AsyncValidateHandle {
+    return (input) => {
+      if (!isIP(input, 6)) return makeValidatorError("ipv6", msg);
+    };
+  }
+
+  static url(msg?: string): AsyncValidateHandle {
+    return (input) => {
+      if (!isURL(input)) return makeValidatorError("url", msg);
     };
   }
 
   static email(msg?: string): AsyncValidateHandle {
-    return (input: string) => {
-      if (typeof input === "string" && !input.match(KEmailRegExp))
-        return { email: msg };
+    return (input) => {
+      if (!isEmail(input)) return makeValidatorError("email", msg);
     };
   }
 
   static max(max: number, msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (!isNaN(input) && input > parseFloat(max as any)) return { max: msg };
+      if (!Number.isFinite(input) || input > max)
+        return makeValidatorError("max", msg);
     };
   }
 
   static min(min: number, msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (!isNaN(input) && input < parseFloat(min as any)) return { min: msg };
+      if (!Number.isFinite(input) || input < min)
+        return makeValidatorError("min", msg);
     };
   }
 
   static hex(msg?: string): AsyncValidateHandle {
-    return (input: string) => {
+    return (input) => {
+      const err = makeValidatorError("hex", msg);
+
+      if (typeof input !== "string") return err;
+
       input = input.replace(/^0x/i, "");
       input = input.replace(/h$/i, "");
-      if (/[^0-9a-fA-F]/.test(input)) return { hex: msg };
+      if (/[^0-9a-fA-F]/.test(input)) return err;
     };
   }
 
   static number(msg?: string): AsyncValidateHandle {
-    return (input: number) => {
-      // 必须是有穷数的数字
-      if (!Number.isFinite(input) || typeof input !== "number")
-        return { number: msg };
+    return (input) => {
+      if (!Number.isFinite(input)) return makeValidatorError("number", msg);
     };
   }
 
   static int(msg?: string): AsyncValidateHandle {
-    return (input: number, data) => {
-      if (this.number("")(input, data) || !Number.isSafeInteger(input))
-        return { int: msg };
-    };
-  }
-
-  static float(msg?: string): AsyncValidateHandle {
-    return (input: number, data) => {
-      if (this.number("")(input, data) || Number.isInteger(input))
-        return { float: msg };
+    return (input) => {
+      if (!Number.isSafeInteger(input)) return makeValidatorError("int", msg);
     };
   }
 
   static array(msg?: string): AsyncValidateHandle {
-    return (input: number) => {
-      if (!Array.isArray(input)) return { array: msg };
+    return (input) => {
+      if (!Array.isArray(input)) return makeValidatorError("array", msg);
     };
   }
 
   static object(msg?: string): AsyncValidateHandle {
     return (input) => {
       if (Object.prototype.toString.call(input) !== "[object Object]")
-        return { object: msg };
+        return makeValidatorError("object", msg);
     };
   }
 
   static json(msg?: string): AsyncValidateHandle {
     return (input) => {
-      try {
-        JSON.parse(input);
-      } catch (error) {
-        return { json: msg };
-      }
+      if (!isJSON(input)) return makeValidatorError("json", msg);
     };
   }
 
   static regexp(msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (!(input instanceof RegExp)) return { regexp: msg };
+      if (!(input instanceof RegExp)) return makeValidatorError("regexp", msg);
     };
   }
 
   static string(msg?: string): AsyncValidateHandle {
     return (input) => {
-      if (typeof input === "string") return null;
-      return { string: msg };
+      if (typeof input !== "string") return makeValidatorError("string", msg);
     };
   }
 }
